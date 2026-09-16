@@ -151,7 +151,8 @@ def save_audit_result(
 
     is_counter = meter.get("is_counter")
 
-    current_value = meter.get("counter_value")
+    last_data = meter.get("last_data") or {}
+    current_value = last_data.get("value")
 
     save_machine_meter(
         machinery_id=machinery_id,
@@ -232,7 +233,7 @@ def main():
             )
 
             current_value = (
-                meter.get("counter_value")
+                (meter.get("last_data") or {}).get("value")
                 if meter
                 else None
             )

@@ -1,4 +1,5 @@
 from api import get_access_token, process_equipment
+from database import initialize_database
 
 
 def main():
@@ -6,6 +7,21 @@ def main():
     print("=" * 60)
     print("PRUEBAS DE SEGURIDAD - HORÓMETROS FRACTTAL")
     print("=" * 60)
+
+    # ========================================================
+    # INICIALIZACIÓN DE BASE DE DATOS
+    # ========================================================
+
+    print()
+    print("Verificando estructura de base de datos...")
+
+    initialize_database()
+
+    print("[OK] Base de datos verificada.")
+
+    # ========================================================
+    # AUTENTICACIÓN FRACTTAL
+    # ========================================================
 
     print()
     print("Obteniendo token...")

@@ -1,0 +1,38 @@
+name: Sincronización diaria MyDevelon
+
+on:
+  schedule:
+    # 08:17 en Chile continental. El minuto distinto de 00 reduce demoras.
+    - cron: '17 8 * * *'
+      timezone: 'America/Santiago'
+  workflow_dispatch:
+
+concurrency:
+  group: daily-mydevelon-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FRACTTAL_CLIENT_ID: ${{ secrets.FRACTTAL_CLIENT_ID }}
+      FRACTTAL_CLIENT_SECRET: ${{ secrets.FRACTTAL_CLIENT_SECRET }}
+      MYDEVELON_CLIENT_ID: ${{ secrets.MYDEVELON_CLIENT_ID }}
+      MYDEVELON_CLIENT_SECRET: ${{ secrets.MYDEVELON_CLIENT_SECRET }}
+      SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+      SYNC_DRY_RUN: ${{ secrets.SYNC_DRY_RUN }}
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Sincronizar horómetros
+        run: python run_mydevelon_sync.py
