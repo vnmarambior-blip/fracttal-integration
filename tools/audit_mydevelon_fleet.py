@@ -11,22 +11,11 @@ from database import (
     get_machinery_by_serial,
     get_telemetry_sync_config
 )
+from mydevelon import AEMP_NAMESPACE
 
 
-XML_FILE = "mydevelon_fleet_minutes.xml"
+XML_FILE = "fixtures/mydevelon_fleet_minutes.xml"
 TARGET_OEM = "DEVELON"
-
-# La antigüedad de la lectura sí limita la automatización.
-# El delta entre MyDevelon y Fracttal NO la limita.
-MAX_SOURCE_AGE_HOURS = 48.0
-ALLOW_OLD_SOURCE_UPDATES = (
-    os.getenv("ALLOW_OLD_SOURCE_UPDATES", "false").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-
-AEMP_NAMESPACE = {
-    "aemp": "http://standards.iso.org/iso/15143/-3"
-}
 
 
 def normalize_serial(value):
@@ -218,13 +207,6 @@ def decide_action(
     if source_age_hours < -(5.0 / 60.0):
         return "REVIEW_SOURCE_DATE"
 
-    # La fuente debe ser suficientemente reciente.
-    if (
-        source_age_hours > MAX_SOURCE_AGE_HOURS
-        and not ALLOW_OLD_SOURCE_UPDATES
-    ):
-        return "REVIEW_OLD_SOURCE"
-
     # No existe un valor válido en Fracttal.
     if fracttal_hours is None:
         return "REVIEW_FRACTTAL_HOURS"
@@ -258,11 +240,6 @@ def main():
 
     print(f"XML: {XML_FILE}")
     print(f"OEM objetivo: {TARGET_OEM}")
-
-    print(
-        f"Antigüedad máxima fuente: "
-        f"{MAX_SOURCE_AGE_HOURS:.2f} h"
-    )
 
     print("FUENTE DE VERDAD: MYDEVELON")
     print("MODO: SOLO LECTURA")

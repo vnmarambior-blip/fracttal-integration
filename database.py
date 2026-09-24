@@ -9,23 +9,23 @@ class IdempotencyConflictError(RuntimeError):
     """La lectura ya fue reservada por otra ejecución."""
 
 
+class PersistenceError(RuntimeError):
+    """La intención no quedó registrada con un id válido."""
+
+
+class IdentityConflictError(RuntimeError):
+    """El equipment_code colisiona con otro serial: sin remapeo."""
+
+
 # ============================================================
 # CONFIGURACIÓN SQL SERVER
 # ============================================================
 
 load_dotenv()
 
-# En producción se configura como secreto (SQL_CONNECTION_STRING). Mantener
-# este valor por defecto permite seguir usando el entorno local de desarrollo.
-CONNECTION_STRING = os.getenv(
-    "SQL_CONNECTION_STRING",
-    (
-        "Server=localhost;"
-        "Database=FracttalIntegration;"
-        "Trusted_Connection=yes;"
-        "TrustServerCertificate=yes;"
-    ),
-)
+# Sin SQL_CONNECTION_STRING se falla explícito: jamás default local
+# silencioso (una corrida "exitosa" contra localhost no audita nada).
+CONNECTION_STRING = os.getenv("SQL_CONNECTION_STRING")
 
 
 # ============================================================
@@ -36,6 +36,12 @@ def get_connection():
     """
     Crea una conexión con SQL Server.
     """
+
+    if not CONNECTION_STRING:
+        raise RuntimeError(
+            "SQL_CONNECTION_STRING no configurada; "
+            "proceso detenido antes de abrir conexiones."
+        )
 
     return mssql_python.connect(
         CONNECTION_STRING
@@ -418,16 +424,16 @@ def upsert_machinery(
     """
     Sincroniza una maquinaria proveniente de Fracttal.
 
-    Orden de identificación:
+    Orden de identificación (serial canónico):
 
         1. Buscar por serial.
         2. Si no existe, buscar por equipment_code.
-        3. Si existe el equipment_code, actualizar ese registro
-           con el nuevo serial.
-        4. Si no existe ninguno, crear un nuevo registro.
-
-    Fracttal actúa como fuente maestra para la identificación
-    actual del activo.
+        3. Si el equipment_code pertenece a otro serial distinto y
+           no vacío, DETENER con IdentityConflictError: jamás
+           remapear en silencio.
+        4. Si el serial registrado está vacío, completar con el
+           nuevo serial (relleno, no remapeo).
+        5. Si no existe ninguno, crear un nuevo registro.
 
     La clasificación proviene directamente de Fracttal:
 
@@ -540,6 +546,19 @@ def upsert_machinery(
 
                 machinery_id = row[0]
                 old_serial = row[1]
+                old_normalized = (
+                    "" if old_serial is None
+                    else str(old_serial).strip().upper()
+                )
+
+                if old_normalized and old_normalized != serial:
+                    connection.rollback()
+                    raise IdentityConflictError(
+                        "Conflicto de identidad: equipment_code "
+                        f"{equipment_code} pertenece al serial "
+                        f"{old_normalized}, no a {serial}. "
+                        "Remapeo automático prohibido."
+                    )
 
                 cursor.execute(
                     """
@@ -667,6 +686,12 @@ def save_horometer_update(
 
     source representa el origen de la lectura.
 
+    Política de dedup por idempotency_key: si la key ya existe se
+    retorna su id sin insertar ni modificar (auditoría append-only;
+    el reintento no deja traza nueva). Si dos ejecuciones concurrentes
+    insertan la misma key, la violación UNIQUE se traduce a
+    IdempotencyConflictError o al id existente, jamás a duplicado.
+
     Ejemplos:
 
         MyDevelon
@@ -697,8 +722,9 @@ def save_horometer_update(
             if existing is not None:
                 return existing[0]
 
-        cursor.execute(
-            """
+        try:
+            cursor.execute(
+                """
             INSERT INTO horometer_updates
             (
                 machinery_id,
@@ -725,38 +751,60 @@ def save_horometer_update(
                 last_attempt_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                machinery_id,
-                meter_id,
-                meter_serial,
-                old_value,
-                new_value,
-                source,
-                reading_date,
-                status,
-                message,
-                idempotency_key,
-                source_reading_datetime,
-                source_value,
-                decision,
-                write_status,
-                http_status,
-                fracttal_reading_id,
-                fracttal_is_duplicate,
-                verification_value,
-                verification_status,
-                error_code,
-                attempt_count,
-                last_attempt_at
+                """,
+                (
+                    machinery_id,
+                    meter_id,
+                    meter_serial,
+                    old_value,
+                    new_value,
+                    source,
+                    reading_date,
+                    status,
+                    message,
+                    idempotency_key,
+                    source_reading_datetime,
+                    source_value,
+                    decision,
+                    write_status,
+                    http_status,
+                    fracttal_reading_id,
+                    fracttal_is_duplicate,
+                    verification_value,
+                    verification_status,
+                    error_code,
+                    attempt_count,
+                    last_attempt_at
+                )
             )
-        )
 
-        connection.commit()
+            connection.commit()
+        except Exception as error:
+            connection.rollback()
+            error_text = str(error).lower()
+            if (
+                idempotency_key is not None
+                and (
+                    "ux_horometer_updates_idempotency_key" in error_text
+                    or "duplicate key" in error_text
+                    or "unique index" in error_text
+                    or "unique constraint" in error_text
+                )
+            ):
+                existing = _recover_intent_id_by_key(
+                    cursor,
+                    idempotency_key,
+                )
+                if existing is not None:
+                    return existing
+                raise IdempotencyConflictError(
+                    "La idempotency_key ya fue reservada."
+                ) from error
+            raise
 
         print(
-            "[OK] Actualización de horómetro guardada "
-            "en SQL Server."
+            "[OK] Auditoría del horómetro guardada en SQL Server "
+            "(no confirma actualización en Fracttal)."
         )
 
     finally:
@@ -838,6 +886,79 @@ def get_horometer_update_by_idempotency_key(idempotency_key):
         connection.close()
 
 
+def list_horometer_write_intents(status):
+    """Lista intenciones por estado (solo lectura, para reconciliación)."""
+
+    connection = get_connection()
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            SELECT
+                id,
+                machinery_id,
+                meter_id,
+                old_value,
+                new_value,
+                idempotency_key
+            FROM horometer_updates
+            WHERE status = ?
+            ORDER BY id
+            """,
+            (status,),
+        )
+
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "id": row[0],
+                "machinery_id": row[1],
+                "meter_id": row[2],
+                "old_value": row[3],
+                "new_value": row[4],
+                "idempotency_key": row[5],
+            }
+            for row in rows
+        ]
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def verify_table_has_identity(table_name="horometer_updates"):
+    """Verifica que la tabla tenga columna identity (causa H1).
+
+    OUTPUT INSERTED.id solo es confiable si la tabla es identity.
+    """
+
+    connection = get_connection()
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            SELECT OBJECTPROPERTY(OBJECT_ID(?), 'TableHasIdentity')
+            """,
+            (table_name,),
+        )
+
+        row = cursor.fetchone()
+        has_identity = bool(row and row[0])
+
+        if not has_identity:
+            raise PersistenceError(
+                "H1 sin verificar: la tabla "
+                f"{table_name} no tiene columna identity."
+            )
+
+        return True
+    finally:
+        cursor.close()
+        connection.close()
+
+
 def create_horometer_write_intent(
     machinery_id,
     meter_id,
@@ -880,6 +1001,7 @@ def create_horometer_write_intent(
                 attempt_count,
                 last_attempt_at
             )
+            OUTPUT INSERTED.id
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -913,15 +1035,52 @@ def create_horometer_write_intent(
                     "La idempotency_key ya fue reservada."
                 ) from error
             raise
-        cursor.execute(
-            "SELECT CAST(SCOPE_IDENTITY() AS BIGINT)"
-        )
-        event_id = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        event_id = row[0] if row is not None else None
+
+        if event_id is None:
+            connection.rollback()
+            event_id = _recover_intent_id_by_key(
+                cursor,
+                idempotency_key,
+            )
+
+        if event_id is None:
+            connection.rollback()
+            raise PersistenceError(
+                "P1.1 no registró la intención: el driver no entregó "
+                f"id ni existe exactamente una fila para {idempotency_key}."
+            )
+
         connection.commit()
         return event_id
     finally:
         cursor.close()
         connection.close()
+
+
+def _recover_intent_id_by_key(cursor, idempotency_key):
+    """Recupera el id sin insertar; exige exactamente una fila."""
+
+    cursor.execute(
+        """
+        SELECT id
+        FROM horometer_updates
+        WHERE idempotency_key = ?
+        ORDER BY id DESC
+        """,
+        (idempotency_key,),
+    )
+
+    first = cursor.fetchone()
+
+    if first is None:
+        return None
+
+    if cursor.fetchone() is not None:
+        return None
+
+    return first[0]
 
 
 def mark_horometer_write_in_progress(event_id):
@@ -937,12 +1096,18 @@ def mark_horometer_write_in_progress(event_id):
             SET
                 status = 'WRITE_IN_PROGRESS',
                 write_status = 'WRITE_IN_PROGRESS',
-                last_attempt_at = SYSDATETIME(),
-                processed_at = NULL
+                last_attempt_at = SYSDATETIME()
             WHERE id = ?
             """,
             (event_id,)
         )
+        if cursor.rowcount != 1:
+            connection.rollback()
+            raise PersistenceError(
+                "P1.1 no pudo marcar exactamente una intención "
+                f"en progreso: event_id={event_id}, "
+                f"filas={cursor.rowcount}."
+            )
         connection.commit()
     finally:
         cursor.close()
@@ -961,10 +1126,13 @@ def update_horometer_write_result(
     verification_status=None,
     error_code=None,
     message=None,
-    attempt_count=1,
     last_attempt_at=None
 ):
-    """Actualiza el resultado del PUT y de su GET de verificación."""
+    """Actualiza el resultado del PUT y de su GET de verificación.
+
+    Cada llamada cuenta como un intento: attempt_count se incrementa
+    en SQL, nunca se sobrescribe.
+    """
 
     connection = get_connection()
 
@@ -983,7 +1151,7 @@ def update_horometer_write_result(
                 verification_status = ?,
                 error_code = ?,
                 message = ?,
-                attempt_count = ?,
+                attempt_count = attempt_count + 1,
                 last_attempt_at = COALESCE(?, SYSDATETIME()),
                 processed_at = SYSDATETIME()
             WHERE id = ?
@@ -998,11 +1166,16 @@ def update_horometer_write_result(
                 verification_status,
                 error_code,
                 message,
-                attempt_count,
                 last_attempt_at,
                 event_id
             )
         )
+        if cursor.rowcount != 1:
+            connection.rollback()
+            raise RuntimeError(
+                "P1.1 no pudo actualizar exactamente una intención: "
+                f"event_id={event_id}, filas={cursor.rowcount}."
+            )
         connection.commit()
     finally:
         cursor.close()
