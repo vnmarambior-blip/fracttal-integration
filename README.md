@@ -5,7 +5,7 @@ Hourmeter telemetry sync: **MyDevelon / Komtrax → SQL Server (audit + idempote
 ## Entry points
 
 - `python run_mydevelon_sync.py` — daily MyDevelon → Fracttal executor (also run by CI).
-  Default mode is fixture-based (`mydevelon_fleet_minutes.xml`, zero network).
+  Default mode is fixture-based (`fixtures/mydevelon_fleet_minutes.xml`, zero network).
   `--live` queries the real API respecting the 15-min quota guard.
 - `python reconcile.py` — closes orphan P1.1 intents (Regla 0). Read-only verification, never PUTs.
 - `python _compare_hours.py` — read-only Komtrax vs Fracttal hourmeter comparison (13 reconciled units).

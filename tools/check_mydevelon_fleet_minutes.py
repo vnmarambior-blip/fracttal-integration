@@ -32,11 +32,11 @@ def main():
     print(response.text[:10000])
 
     if response.status_code == 200:
-        with open("mydevelon_fleet_minutes.xml", "w", encoding="utf-8") as f:
+        with open("fixtures/mydevelon_fleet_minutes.xml", "w", encoding="utf-8") as f:
             f.write(response.text)
 
         print("\n[OK] XML guardado en:")
-        print("mydevelon_fleet_minutes.xml")
+        print("fixtures/mydevelon_fleet_minutes.xml")
 
 
 if __name__ == "__main__":

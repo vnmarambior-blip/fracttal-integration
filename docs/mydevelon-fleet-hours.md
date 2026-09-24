@@ -65,7 +65,7 @@ Authorization: Bearer <authorizationToken>
 - Difiere del endpoint `/minutes` **solo** en `CumulativeIdleHours`:
   aquí `Hour` (horas), allá `minutes` (minutos). El fetch vivo usa
   `/Fleet/1` (`FLEET_URL` en `mydevelon.py`); el modo archivo usa el
-  fixture `mydevelon_fleet_minutes.xml` (formato minutes); no mezclar fuentes.
+  fixture `fixtures/mydevelon_fleet_minutes.xml` (formato minutes); no mezclar fuentes.
 - Lo consumido por el sync es idéntico: `PIN`, `Hour` de operating
   hours y su `@datetime`.
 - Namespace: `http://standards.iso.org/iso/15143/-3`
