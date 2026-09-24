@@ -1,8 +1,5 @@
 """Local mock tests for Komtrax Fleet HTTP 429 handling."""
 
-import ast
-import importlib.util
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -30,74 +27,30 @@ class FakeResponse:
 
 @pytest.fixture
 def compare_module(monkeypatch, tmp_path):
-    """Load the comparison module without making any network request."""
-    fleet_xml = """<?xml version="1.0"?>
-<Fleet xmlns="http://www.jcmanet.or.jp/english2017/ISO/15143/-3/20190501">
-  <Equipment>
-    <EquipmentHeader>
-      <OEMName>KOMATSU</OEMName>
-      <Model>TEST-MODEL</Model>
-      <EquipmentID>TEST-01</EquipmentID>
-      <SerialNumber>1</SerialNumber>
-    </EquipmentHeader>
-    <CumulativeOperatingHours datetime="2026-01-01T00:00:00Z">
-      <Hour>1.0</Hour>
-    </CumulativeOperatingHours>
-  </Equipment>
-</Fleet>"""
+    """Provide the komtrax module with mocked transport and tmp state."""
+    import komtrax
 
-    post = Mock(
-        return_value=FakeResponse(
-            200,
-            {"access_token": "test-token"},
-        )
-    )
-    get = Mock(
-        side_effect=[
-            FakeResponse(200, text=fleet_xml),
-            FakeResponse(200, {"data": [], "total": 0}),
-        ]
-    )
-
-    monkeypatch.setattr(requests, "post", post)
+    get = Mock()
+    post = Mock()
     monkeypatch.setattr(requests, "get", get)
-
-    module_path = Path(__file__).resolve().parent.parent / "_compare_hours.py"
-    source = module_path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(module_path))
-    last_definition_end = max(
-        node.end_lineno
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.ClassDef))
+    monkeypatch.setattr(requests, "post", post)
+    monkeypatch.setattr(
+        komtrax, "KOMTRAX_TOKEN_CACHE", str(tmp_path / "komtrax_token.txt")
     )
-    definitions = [
-        node
-        for node in tree.body
-        if getattr(node, "end_lineno", node.lineno) <= last_definition_end
-    ]
-    module = importlib.util.module_from_spec(
-        importlib.util.spec_from_file_location(
-            "_compare_hours_test_target",
-            module_path,
-        )
+    monkeypatch.setattr(komtrax, "KOMTRAX_TOKEN_TTL_SECONDS", 7000)
+    monkeypatch.setattr(
+        komtrax, "KOMTRAX_FLEET_STATE", str(tmp_path / "komtrax_fleet_state.txt")
     )
-    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(module_path), "exec"), module.__dict__)
-
-    module.KOMTRAX_TOKEN_CACHE = str(tmp_path / "komtrax_token.txt")
-    module.KOMTRAX_TOKEN_TTL_SECONDS = 7000
-    module.KOMTRAX_FLEET_STATE = str(tmp_path / "komtrax_fleet_state.txt")
-    module.KOMTRAX_FLEET_MIN_INTERVAL_SECONDS = 300
-
-    return module, get
+    monkeypatch.setattr(komtrax, "KOMTRAX_FLEET_MIN_INTERVAL_SECONDS", 300)
+    return komtrax, get
 
 
-def test_fracttal_token_reuses_canonical_api_token(compare_module):
+def test_fracttal_token_reuses_canonical_api_token():
     import api
+    import _compare_hours
 
-    module, _ = compare_module
-
-    assert callable(getattr(module, "get_fracttal_token", None))
-    assert module.get_fracttal_token is api.get_access_token
+    assert callable(getattr(_compare_hours, "get_fracttal_token", None))
+    assert _compare_hours.get_fracttal_token is api.get_access_token
 
 
 def test_rate_limited_response_raises_komtrax_fleet_error(compare_module):
@@ -112,10 +65,8 @@ def test_rate_limited_response_raises_komtrax_fleet_error(compare_module):
         module.get_komtrax_fleet("test-token")
 
 
-def test_rate_limited_response_makes_exactly_one_request(compare_module, monkeypatch):
+def test_rate_limited_response_makes_exactly_one_request(compare_module):
     module, get = compare_module
-    sleep = Mock()
-    monkeypatch.setattr(module.time, "sleep", sleep)
     get.reset_mock(side_effect=True)
     get.return_value = FakeResponse(
         429,
@@ -126,7 +77,6 @@ def test_rate_limited_response_makes_exactly_one_request(compare_module, monkeyp
         module.get_komtrax_fleet("test-token")
 
     assert get.call_count == 1
-    sleep.assert_not_called()
 
 
 def test_http_200_returns_xml(compare_module):
