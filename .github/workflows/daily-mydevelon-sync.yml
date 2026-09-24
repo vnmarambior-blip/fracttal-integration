@@ -31,12 +31,12 @@ jobs:
       # scripts manuales que requieren APIs live o SQL Server.
       - name: Tests seguros
         run: >
-          python -m pytest -q test_mydevelon_source.py
-          test_import_safety.py test_aux_config.py
-          test_p1_1_idempotency.py test_p1_1_persistence.py
-          test_r15_concurrency.py test_r7_single_event.py
-          test_r5_verification.py test_r3_http_classification.py
-          test_reconcile_intents.py
+          python -m pytest -q tests/test_mydevelon_source.py
+          tests/test_import_safety.py tests/test_aux_config.py
+          tests/test_p1_1_idempotency.py tests/test_p1_1_persistence.py
+          tests/test_r15_concurrency.py tests/test_r7_single_event.py
+          tests/test_r5_verification.py tests/test_r3_http_classification.py
+          tests/test_reconcile_intents.py
 
   sync:
     runs-on: ubuntu-latest

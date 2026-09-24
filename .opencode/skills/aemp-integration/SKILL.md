@@ -1,3 +1,7 @@
+---
+name: aemp-integration
+description: Multi-OEM heavy-equipment telemetry integration using AEMP 2.0 / ISO 15143-3 as normalization reference. Use when adding OEM adapters, mapping OEM fields, or evolving the telemetry layer without rewriting the core integration.
+---
 # Skill: AEMP Integration
 
 ## Purpose

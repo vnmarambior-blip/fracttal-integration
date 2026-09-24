@@ -1,3 +1,7 @@
+---
+name: data-quality
+description: Identify, classify, investigate, and report data-quality problems across OEM telemetry, SQL Server, and Fracttal. Use when facing identity, mapping, meter, timestamp, value, or configuration inconsistencies.
+---
 # Skill: Data Quality
 
 ## Purpose

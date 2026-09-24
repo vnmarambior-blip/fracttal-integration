@@ -832,6 +832,7 @@ def apply_meter_reading(
     retrieved_at,
     decision,
     dry_run=True,
+    source="MyDevelon",
     *,
     equipment,
     machinery_id
@@ -948,7 +949,7 @@ def apply_meter_reading(
 
     telemetry_config = get_telemetry_sync_config(
         machinery_id=machinery_id,
-        telemetry_source="MYDEVELON"
+        telemetry_source=str(source).strip().upper()
     )
 
     if telemetry_config is None:
@@ -2020,6 +2021,7 @@ def process_equipment(
             retrieved_at=retrieved_at,
             decision=action,
             dry_run=dry_run,
+            source=source,
             equipment=equipment,
             machinery_id=machinery_id
         )

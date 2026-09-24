@@ -1,3 +1,7 @@
+---
+name: fracttal-integration
+description: Interact with the Fracttal ONE API (equipment, meters, readings) with SQL Server as control/audit layer. Use when writing or verifying Fracttal reads/writes, idempotency, or controlled updates.
+---
 # Skill: Fracttal Integration
 
 ## Purpose

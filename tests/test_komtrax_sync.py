@@ -122,3 +122,47 @@ def test_executor_import_has_no_side_effects(monkeypatch, capsys):
 
     out, _ = capsys.readouterr()
     assert out == ""
+
+
+def test_apply_meter_reading_threads_source_to_telemetry_config(monkeypatch):
+    import api
+    from datetime import datetime, timezone
+
+    equipment = {
+        "id": 1,
+        "code": "MN04",
+        "field_4": "55267",
+        "field_3": "GD675-5",
+    }
+    monkeypatch.setattr(
+        api, "get_equipment_by_serial", lambda token, serial: dict(equipment)
+    )
+    monkeypatch.setattr(
+        api, "get_machinery_by_id", lambda mid: {"serial": "55267"}
+    )
+    seen = []
+    monkeypatch.setattr(
+        api,
+        "get_telemetry_sync_config",
+        lambda machinery_id, telemetry_source: seen.append(telemetry_source),
+    )
+    base = dict(
+        token="t",
+        code="MN04",
+        value=10599.8,
+        serial="55267",
+        reading_datetime=datetime(2026, 8, 11, 5, 0, tzinfo=timezone.utc),
+        retrieved_at=datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc),
+        decision="UPDATE",
+        dry_run=False,
+        equipment=dict(equipment),
+        machinery_id=40,
+    )
+
+    with pytest.raises(ValueError, match="CONFIG_MISSING"):
+        api.apply_meter_reading(**dict(base, source="Komtrax"))
+    assert seen == ["KOMTRAX"]
+
+    with pytest.raises(ValueError, match="CONFIG_MISSING"):
+        api.apply_meter_reading(**base)
+    assert seen == ["KOMTRAX", "MYDEVELON"]
