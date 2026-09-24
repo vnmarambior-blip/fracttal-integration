@@ -65,6 +65,12 @@ def initialize_database():
         machinery.asset_group_1
         machinery.asset_group_2
         machine_meters.telemetry_source
+        horometer_updates P1.1 (idempotency_key, source_reading_datetime, source_value,
+            decision, write_status, http_status, fracttal_reading_id,
+            fracttal_is_duplicate, verification_value, verification_status,
+            error_code, attempt_count, last_attempt_at)
+        horometer_updates CK_horometer_updates_status
+        horometer_updates UX_horometer_updates_idempotency_key
     """
 
     connection = get_connection()
@@ -174,6 +180,175 @@ def initialize_database():
             print(
                 "[OK] Columna telemetry_source ya existe."
             )
+
+        # ====================================================
+        # HOROMETER UPDATES - P1.1 IDEMPOTENCY COLUMNS
+        # ====================================================
+
+        p11_columns = [
+            ("idempotency_key", "VARCHAR(128) NULL"),
+            ("source_reading_datetime", "DATETIMEOFFSET(7) NULL"),
+            ("source_value", "DECIMAL(18, 2) NULL"),
+            ("decision", "VARCHAR(50) NULL"),
+            ("write_status", "VARCHAR(50) NULL"),
+            ("http_status", "INT NULL"),
+            ("fracttal_reading_id", "BIGINT NULL"),
+            ("fracttal_is_duplicate", "BIT NULL"),
+            ("verification_value", "DECIMAL(18, 2) NULL"),
+            ("verification_status", "VARCHAR(50) NULL"),
+            ("error_code", "VARCHAR(100) NULL"),
+            ("attempt_count", "INT NOT NULL CONSTRAINT DF_horometer_updates_attempt_count DEFAULT 0"),
+            ("last_attempt_at", "DATETIMEOFFSET(7) NULL"),
+        ]
+
+        for column_name, column_definition in p11_columns:
+
+            cursor.execute(
+                """
+                SELECT COUNT(*)
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'horometer_updates'
+                  AND COLUMN_NAME = ?
+                """,
+                (column_name,)
+            )
+
+            exists = cursor.fetchone()[0]
+
+            if exists == 0:
+
+                print(
+                    f"[DB] Agregando columna "
+                    f"horometer_updates.{column_name}..."
+                )
+
+                cursor.execute(
+                    f"""
+                    ALTER TABLE horometer_updates
+                    ADD {column_name} {column_definition}
+                    """
+                )
+
+                connection.commit()
+
+                print(
+                    f"[OK] Columna "
+                    f"horometer_updates.{column_name} creada."
+                )
+
+            else:
+
+                print(
+                    f"[OK] Columna "
+                    f"horometer_updates.{column_name} ya existe."
+                )
+
+        # ====================================================
+        # HOROMETER UPDATES - CHECK CONSTRAINT STATUS
+        # ====================================================
+
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM sys.check_constraints
+            WHERE name = 'CK_horometer_updates_status'
+              AND parent_object_id = OBJECT_ID('dbo.horometer_updates')
+            """
+        )
+
+        constraint_exists = cursor.fetchone()[0]
+
+        if constraint_exists == 0:
+
+            print("[DB] Agregando constraint CK_horometer_updates_status...")
+
+            cursor.execute("""
+                ALTER TABLE dbo.horometer_updates
+                ADD CONSTRAINT CK_horometer_updates_status CHECK
+                (
+                    [status] IN
+                    (
+                        'ERROR',
+                        'METER_NOT_FOUND',
+                        'NOT_FOUND',
+                        'REJECTED',
+                        'SKIPPED',
+                        'UPDATED',
+                        'WOULD_UPDATE',
+                        'RECEIVED',
+                        'METER_SERIAL_MISMATCH',
+                        'REVIEW',
+                        'NO_VALID_METER',
+                        'SKIP_EQUAL',
+                        'REVIEW_INCONSISTENCY',
+                        'INTENT_RECORDED',
+                        'WRITE_IN_PROGRESS',
+                        'VERIFIED',
+                        'WRITE_AMBIGUOUS',
+                        'ERROR_RETRYABLE'
+                    )
+                );
+            """)
+
+            connection.commit()
+
+            print("[OK] Constraint CK_horometer_updates_status creada.")
+
+        else:
+
+            print("[OK] Constraint CK_horometer_updates_status ya existe.")
+
+        # ====================================================
+        # HOROMETER UPDATES - UNIQUE INDEX IDEMPOTENCY KEY
+        # ====================================================
+
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM sys.indexes
+            WHERE name = 'UX_horometer_updates_idempotency_key'
+              AND object_id = OBJECT_ID('dbo.horometer_updates')
+            """
+        )
+
+        index_exists = cursor.fetchone()[0]
+
+        if index_exists == 0:
+
+            print("[DB] Creando índice único UX_horometer_updates_idempotency_key...")
+
+            # Check for duplicates before creating index
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT idempotency_key
+                    FROM dbo.horometer_updates
+                    WHERE idempotency_key IS NOT NULL
+                    GROUP BY idempotency_key
+                    HAVING COUNT(*) > 1
+                ) AS duplicates;
+            """)
+
+            duplicate_count = cursor.fetchone()[0]
+
+            if duplicate_count > 0:
+
+                print("[ERROR] Existen idempotency_key duplicadas; no se creará el índice.")
+            else:
+
+                cursor.execute("""
+                    CREATE UNIQUE INDEX UX_horometer_updates_idempotency_key
+                    ON dbo.horometer_updates(idempotency_key)
+                    WHERE idempotency_key IS NOT NULL;
+                """)
+
+                connection.commit()
+
+                print("[OK] Índice UX_horometer_updates_idempotency_key creado.")
+
+        else:
+
+            print("[OK] Índice UX_horometer_updates_idempotency_key ya existe.")
 
     finally:
 
