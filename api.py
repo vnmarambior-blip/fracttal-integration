@@ -1,4 +1,5 @@
 import os
+import math
 import hashlib
 import requests
 from datetime import datetime, timezone
@@ -13,7 +14,8 @@ from database import (
     create_horometer_write_intent,
     update_horometer_write_result,
     mark_horometer_write_in_progress,
-    IdempotencyConflictError
+    IdempotencyConflictError,
+    PersistenceError
 )
 
 
@@ -32,12 +34,7 @@ EQUIPMENT_URL = "https://app.fracttal.com/api/items/"
 METERS_URL = "https://app.fracttal.com/api/meters/"
 METER_READING_URL = "https://app.fracttal.com/api/meter_reading/"
 
-MAX_SOURCE_AGE_HOURS = 48.0
 MAX_FUTURE_SKEW_MINUTES = 5.0
-ALLOW_OLD_SOURCE_UPDATES = (
-    os.getenv("ALLOW_OLD_SOURCE_UPDATES", "false").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
 
 _APPLY_WRITE_CONTEXT = object()
 _MISSING_METER_SERIAL_ALLOWLIST = {
@@ -47,6 +44,19 @@ _MISSING_METER_SERIAL_ALLOWLIST = {
 
 class RetryableWriteError(RuntimeError):
     """Error demostrado antes de enviar una solicitud de escritura."""
+
+
+class FracttalResponseError(RuntimeError):
+    """La API respondió, pero no entregó un resultado utilizable."""
+
+    def __init__(self, status_code, body, message):
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
+
+
+class NoNewReadingError(ValueError):
+    """La lectura OEM no es posterior a la lectura ya registrada."""
 
 
 # ============================================================
@@ -506,6 +516,7 @@ def get_current_hourmeter(token, equipment):
 
     last_data = meter.get("last_data") or {}
     current_value = last_data.get("value")
+    last_reading_datetime = last_data.get("date")
 
     if current_value is None:
         raise ValueError(
@@ -520,15 +531,53 @@ def get_current_hourmeter(token, equipment):
             "FRACTTAL_READING_INVALID: last_data.value no es numérico."
         ) from error
 
+    if not isinstance(last_reading_datetime, str):
+        raise ValueError(
+            "FRACTTAL_READING_DATE_MISSING: el horómetro no tiene "
+            "last_data.date."
+        )
+
+    try:
+        last_reading_datetime = datetime.fromisoformat(
+            last_reading_datetime.replace("Z", "+00:00")
+        )
+    except ValueError as error:
+        raise ValueError(
+            "FRACTTAL_READING_DATE_INVALID: last_data.date no es válido."
+        ) from error
+
+    if (
+        last_reading_datetime.tzinfo is None
+        or last_reading_datetime.utcoffset() is None
+    ):
+        raise ValueError(
+            "FRACTTAL_READING_DATE_INVALID: last_data.date no tiene zona."
+        )
+
     return {
         "meter": meter,
-        "value": current_value
+        "value": current_value,
+        "last_reading_datetime": last_reading_datetime
     }
 
 
 # ============================================================
 # VALIDACIÓN DEL NUEVO HORÓMETRO
 # ============================================================
+
+def normalize_comparison_value(value):
+    """Normaliza a 2 decimales; None si no es numérico finito."""
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(number):
+        return None
+
+    return round(number, 2)
+
 
 def validate_hourmeter_update(current_value, new_value):
     """
@@ -547,6 +596,12 @@ def validate_hourmeter_update(current_value, new_value):
 
     if current_value is None:
         return "UPDATE"
+
+    current_value = normalize_comparison_value(current_value)
+    new_value = normalize_comparison_value(new_value)
+
+    if current_value is None or new_value is None:
+        return "REVIEW_INCONSISTENCY"
 
     if new_value == current_value:
         return "SKIP_EQUAL"
@@ -600,16 +655,40 @@ def validate_source_timestamps(
         now - reading_datetime
     ).total_seconds() / 3600.0
 
-    if (
-        age_hours > MAX_SOURCE_AGE_HOURS
-        and not ALLOW_OLD_SOURCE_UPDATES
-    ):
-        return "REVIEW_OLD_SOURCE"
-
     if age_hours < -(
         MAX_FUTURE_SKEW_MINUTES / 60.0
     ):
         return "REVIEW_SOURCE_DATE"
+
+    return None
+
+
+def validate_reading_is_newer(
+    reading_datetime,
+    last_reading_datetime
+):
+    """Checks that the OEM reading is newer than Fracttal's last reading."""
+
+    if not isinstance(last_reading_datetime, datetime):
+        return "REVIEW_SOURCE_DATE"
+
+    if (
+        last_reading_datetime.tzinfo is None
+        or last_reading_datetime.utcoffset() is None
+    ):
+        return "REVIEW_SOURCE_DATE"
+
+    if (
+        reading_datetime.astimezone(timezone.utc)
+        < last_reading_datetime.astimezone(timezone.utc)
+    ):
+        return "REVIEW_OLD_SOURCE"
+
+    if (
+        reading_datetime.astimezone(timezone.utc)
+        == last_reading_datetime.astimezone(timezone.utc)
+    ):
+        return "SKIP_EQUAL"
 
     return None
 
@@ -680,10 +759,34 @@ def insert_meter_reading(
             "La solicitud no pudo prepararse antes del envío."
         ) from error
 
-    response.raise_for_status()
+    response_body = response.text[:4000]
+
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:
+        raise FracttalResponseError(
+            status_code=response.status_code,
+            body=response_body,
+            message=(
+                f"Fracttal respondió HTTP {response.status_code}: "
+                f"{response_body}"
+            )
+        ) from error
+
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise FracttalResponseError(
+            status_code=response.status_code,
+            body=response_body,
+            message=(
+                "Fracttal respondió con un body no JSON después del PUT: "
+                f"{response_body}"
+            )
+        ) from error
 
     return {
-        "payload": response.json(),
+        "payload": payload,
         "http_status": response.status_code
     }
 
@@ -879,6 +982,10 @@ def apply_meter_reading(
 
     current_meter = current_result["meter"]
     current_value = current_result["value"]
+    current_last_reading_datetime = current_result[
+        "last_reading_datetime"
+    ]
+
     current_meter_serial = str(
         current_meter.get("serial", "")
     ).strip().upper()
@@ -959,6 +1066,23 @@ def apply_meter_reading(
     else:
         event_id = None
 
+    order_status = validate_reading_is_newer(
+        reading_datetime,
+        current_last_reading_datetime
+    )
+
+    if order_status == "SKIP_EQUAL":
+        raise NoNewReadingError(
+            "SKIP_EQUAL: la lectura MyDevelon no es posterior "
+            "a la última lectura de Fracttal."
+        )
+
+    if order_status == "REVIEW_OLD_SOURCE":
+        raise ValueError(
+            "REVIEW_OLD_SOURCE: la lectura MyDevelon es anterior "
+            "a la última lectura de Fracttal."
+        )
+
     try:
         current_value = float(current_value)
         value = float(value)
@@ -967,12 +1091,21 @@ def apply_meter_reading(
             "No se puede aplicar la lectura con valores no numéricos."
         )
 
-    if value == current_value:
+    if not math.isfinite(current_value) or not math.isfinite(value):
+        raise ValueError(
+            "No se puede aplicar la lectura con valores no finitos."
+        )
+
+    if normalize_comparison_value(value) == normalize_comparison_value(
+        current_value
+    ):
         raise ValueError(
             "SKIP_EQUAL: el valor ya coincide con Fracttal."
         )
 
-    if value < current_value:
+    if normalize_comparison_value(value) < normalize_comparison_value(
+        current_value
+    ):
         raise ValueError(
             "REVIEW_INCONSISTENCY: el valor MyDevelon "
             "es menor que Fracttal."
@@ -1014,6 +1147,12 @@ def apply_meter_reading(
                 "por otra ejecución."
             ) from error
 
+    if not event_id:
+        raise PersistenceError(
+            "P1.1 no registró la intención: event_id inválido, "
+            "PUT bloqueado antes de ejecutarse."
+        )
+
     mark_horometer_write_in_progress(event_id)
 
     try:
@@ -1032,10 +1171,33 @@ def apply_meter_reading(
         reading_id = meter_data.get("id_meters_readings")
         is_duplicate = meter_data.get("is_duplicate")
 
-        verification = get_current_hourmeter(
-            token,
-            equipment
-        )
+        try:
+            verification = get_current_hourmeter(
+                token,
+                equipment
+            )
+        except (
+            requests.exceptions.RequestException,
+            ValueError
+        ) as error:
+            update_horometer_write_result(
+                event_id,
+                status="WRITE_AMBIGUOUS",
+                write_status="WRITE_AMBIGUOUS",
+                http_status=write_result["http_status"],
+                fracttal_reading_id=reading_id,
+                fracttal_is_duplicate=is_duplicate,
+                verification_status="VERIFICATION_ERROR",
+                error_code=f"VERIFICATION_{type(error).__name__}",
+                message=(
+                    "El PUT respondió, pero el GET de verificación "
+                    f"falló: {error}"
+                )
+            )
+            raise ValueError(
+                "WRITE_AMBIGUOUS: el PUT respondió, pero el GET "
+                "de verificación falló."
+            ) from error
 
         if verification is None:
             update_horometer_write_result(
@@ -1054,12 +1216,17 @@ def apply_meter_reading(
             )
 
         verification_meter = verification["meter"]
-        verification_value = float(verification["value"])
+        verification_value = normalize_comparison_value(
+            verification["value"]
+        )
+        expected_value = normalize_comparison_value(value)
         verification_ok = (
             verification_meter.get("id") == current_meter.get("id")
             and str(verification_meter.get("serial", "")).strip().upper()
             == current_meter_serial
-            and verification_value == value
+            and verification_value is not None
+            and expected_value is not None
+            and verification_value == expected_value
         )
 
         if not verification_ok:
@@ -1100,11 +1267,35 @@ def apply_meter_reading(
             "response": payload
         }
 
+    except FracttalResponseError as error:
+        status_code = error.status_code or 0
+        if status_code in (408, 429):
+            result_status = "WRITE_AMBIGUOUS"
+        elif 400 <= status_code < 500:
+            result_status = "ERROR"
+        else:
+            result_status = "WRITE_AMBIGUOUS"
+        update_horometer_write_result(
+            event_id,
+            status=result_status,
+            write_status=result_status,
+            http_status=error.status_code,
+            verification_status="NOT_ATTEMPTED",
+            error_code=f"HTTP_{error.status_code}",
+            message=(
+                f"{error}. Body: {error.body}"
+            )
+        )
+        raise ValueError(
+            f"{result_status}: respuesta HTTP de Fracttal "
+            f"{error.status_code}."
+        ) from error
     except RetryableWriteError as error:
         update_horometer_write_result(
             event_id,
             status="ERROR_RETRYABLE",
             write_status="ERROR_RETRYABLE",
+            verification_status="NOT_ATTEMPTED",
             error_code=type(error).__name__,
             message=str(error)
         )
@@ -1116,6 +1307,7 @@ def apply_meter_reading(
             event_id,
             status="WRITE_AMBIGUOUS",
             write_status="WRITE_AMBIGUOUS",
+            verification_status="NOT_ATTEMPTED",
             error_code=type(error).__name__,
             message=str(error)
         )
@@ -1184,6 +1376,22 @@ def process_equipment(
     )
 
     if timestamp_status is not None:
+        save_horometer_update(
+            machinery_id=None,
+            meter_id=None,
+            meter_serial=serial,
+            old_value=None,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            decision="REVIEW_SOURCE_DATE",
+            write_status="BLOCKED",
+            idempotency_key=None,
+            message=(
+                "No se pudo validar la fecha de la lectura."
+            )
+        )
         return {
             "status": timestamp_status,
             "serial": serial,
@@ -1303,6 +1511,20 @@ def process_equipment(
         )
 
     except ValueError as error:
+        save_horometer_update(
+            machinery_id=machinery_id,
+            meter_id=None,
+            meter_serial=serial,
+            old_value=None,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            error_code="CONFIG_MULTIPLE",
+            decision="CONFIG_MULTIPLE",
+            write_status="BLOCKED",
+            message=str(error)
+        )
         return {
             "status": "CONFIG_MULTIPLE",
             "serial": serial,
@@ -1312,6 +1534,23 @@ def process_equipment(
         }
 
     if telemetry_config is None:
+        save_horometer_update(
+            machinery_id=machinery_id,
+            meter_id=None,
+            meter_serial=serial,
+            old_value=None,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            error_code="CONFIG_MISSING",
+            decision="CONFIG_MISSING",
+            write_status="BLOCKED",
+            message=(
+                "Sin configuración de telemetría "
+                f"para el activo {code}."
+            )
+        )
         return {
             "status": "CONFIG_MISSING",
             "serial": serial,
@@ -1320,6 +1559,23 @@ def process_equipment(
         }
 
     if not telemetry_config.get("sync_enabled"):
+        save_horometer_update(
+            machinery_id=machinery_id,
+            meter_id=None,
+            meter_serial=serial,
+            old_value=None,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            error_code="SYNC_DISABLED",
+            decision="SYNC_DISABLED",
+            write_status="BLOCKED",
+            message=(
+                "Telemetría deshabilitada "
+                f"para el activo {code}."
+            )
+        )
         return {
             "status": "SYNC_DISABLED",
             "serial": serial,
@@ -1332,6 +1588,23 @@ def process_equipment(
     ).strip().upper()
 
     if action_policy != "AUTO":
+        save_horometer_update(
+            machinery_id=machinery_id,
+            meter_id=None,
+            meter_serial=serial,
+            old_value=None,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            error_code="CONFIG_REVIEW",
+            decision="CONFIG_REVIEW",
+            write_status="BLOCKED",
+            message=(
+                "Política no automática "
+                f"para el activo {code}."
+            )
+        )
         return {
             "status": "CONFIG_REVIEW",
             "serial": serial,
@@ -1448,6 +1721,7 @@ def process_equipment(
 
     meter = result["meter"]
     current_value = result["value"]
+    last_reading_datetime = result["last_reading_datetime"]
 
     meter_id = meter.get("id")
     meter_serial = meter.get("serial")
@@ -1466,6 +1740,113 @@ def process_equipment(
     print(f"     Descripción: {meter_description}")
     print(f"     Serial: {meter_serial}")
     print(f"     Valor Fracttal: {current_value}")
+    print(
+        "     Última lectura Fracttal: "
+        f"{last_reading_datetime.isoformat()}"
+    )
+
+    source_order_status = validate_reading_is_newer(
+        reading_datetime,
+        last_reading_datetime
+    )
+
+    if source_order_status == "REVIEW_SOURCE_DATE":
+        save_horometer_update(
+            machinery_id=machinery_id,
+            meter_id=meter_id,
+            meter_serial=meter_serial,
+            old_value=current_value,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            idempotency_key=reading_idempotency_key,
+            source_reading_datetime=reading_datetime,
+            source_value=new_value,
+            decision="REVIEW_SOURCE_DATE",
+            write_status="BLOCKED",
+            message=(
+                "No se pudo validar la fecha de la última lectura "
+                "de Fracttal."
+            )
+        )
+        return {
+            "status": "REVIEW",
+            "serial": serial,
+            "code": code,
+            "asset_type": asset_type,
+            "old_value": current_value,
+            "new_value": new_value
+        }
+
+    if source_order_status == "REVIEW_OLD_SOURCE":
+        save_horometer_update(
+            machinery_id=machinery_id,
+            meter_id=meter_id,
+            meter_serial=meter_serial,
+            old_value=current_value,
+            new_value=new_value,
+            source="MyDevelon",
+            reading_date=retrieved_at,
+            status="REVIEW",
+            idempotency_key=reading_idempotency_key,
+            source_reading_datetime=reading_datetime,
+            source_value=new_value,
+            decision="REVIEW_OLD_SOURCE",
+            write_status="BLOCKED",
+            message=(
+                "La lectura MyDevelon es anterior a la última "
+                "lectura de Fracttal; jamás equivale a igual."
+            )
+        )
+        return {
+            "status": "REVIEW",
+            "serial": serial,
+            "code": code,
+            "asset_type": asset_type,
+            "old_value": current_value,
+            "new_value": new_value
+        }
+
+    if source_order_status == "SKIP_EQUAL":
+        norm_new = normalize_comparison_value(new_value)
+        norm_current = normalize_comparison_value(current_value)
+
+        if (
+            norm_new is not None
+            and norm_current is not None
+            and norm_new == norm_current
+        ):
+            save_horometer_update(
+                machinery_id=machinery_id,
+                meter_id=meter_id,
+                meter_serial=meter_serial,
+                old_value=current_value,
+                new_value=new_value,
+                source="MyDevelon",
+                reading_date=retrieved_at,
+                status="SKIP_EQUAL",
+                idempotency_key=reading_idempotency_key,
+                source_reading_datetime=reading_datetime,
+                source_value=new_value,
+                decision="SKIP_EQUAL",
+                write_status="SKIP_EQUAL",
+                message=(
+                    "La lectura MyDevelon coincide en fecha y valor "
+                    "con la última lectura de Fracttal."
+                )
+            )
+            return {
+                "status": "SKIP_EQUAL",
+                "serial": serial,
+                "code": code,
+                "asset_type": asset_type,
+                "old_value": current_value,
+                "new_value": new_value
+            }
+        # Misma fecha pero valor distinto: continúa a validación de
+        # actualización. (new_value no normalizable no llega aquí:
+        # la construcción de la key falla antes, en voz alta.)
 
     # ========================================================
     # 7. VALIDAR ACTUALIZACIÓN
@@ -1602,6 +1983,11 @@ def process_equipment(
             source="MyDevelon",
             reading_date=retrieved_at,
             status="WOULD_UPDATE",
+            idempotency_key=reading_idempotency_key,
+            source_reading_datetime=reading_datetime,
+            source_value=new_value,
+            decision="WOULD_UPDATE",
+            write_status="WOULD_UPDATE",
             message=(
                 "Simulación DRY RUN. "
                 "Fracttal no fue modificado."
@@ -1614,7 +2000,8 @@ def process_equipment(
             "code": code,
             "asset_type": asset_type,
             "old_value": current_value,
-            "new_value": new_value
+            "new_value": new_value,
+            "idempotency_key": reading_idempotency_key
         }
 
     # ========================================================
@@ -1648,20 +2035,36 @@ def process_equipment(
             f"        {error}"
         )
 
-        save_horometer_update(
-            machinery_id=machinery_id,
-            meter_id=meter_id,
-            meter_serial=meter_serial,
-            old_value=current_value,
-            new_value=new_value,
-            source="MyDevelon",
-            reading_date=retrieved_at,
-            status="ERROR",
-            message=str(error)
+        existing_event = get_horometer_update_by_idempotency_key(
+            reading_idempotency_key
+        )
+        existing_write_status = (
+            str(
+                (existing_event or {}).get("write_status")
+                or ""
+            ).strip().upper()
         )
 
+        if existing_event is None:
+            save_horometer_update(
+                machinery_id=machinery_id,
+                meter_id=meter_id,
+                meter_serial=meter_serial,
+                old_value=current_value,
+                new_value=new_value,
+                source="MyDevelon",
+                reading_date=retrieved_at,
+                status="ERROR",
+                idempotency_key=reading_idempotency_key,
+                source_reading_datetime=reading_datetime,
+                source_value=new_value,
+                decision="ERROR",
+                write_status="ERROR",
+                message=str(error)
+            )
+
         return {
-            "status": "ERROR",
+            "status": existing_write_status or "ERROR",
             "serial": serial,
             "code": code,
             "asset_type": asset_type,
@@ -1679,27 +2082,14 @@ def process_equipment(
         "[OK] Horómetro actualizado correctamente."
     )
 
-    save_horometer_update(
-        machinery_id=machinery_id,
-        meter_id=meter_id,
-        meter_serial=meter_serial,
-        old_value=current_value,
-        new_value=new_value,
-        source="MyDevelon",
-        reading_date=retrieved_at,
-        status="UPDATED",
-        message=(
-            "Horómetro actualizado correctamente "
-            "en Fracttal."
-        )
-    )
-
     return {
-        "status": "UPDATED",
+        "status": response.get("status") or "VERIFIED",
         "serial": serial,
         "code": code,
         "asset_type": asset_type,
         "old_value": current_value,
         "new_value": new_value,
+        "event_id": response.get("event_id"),
+        "idempotency_key": response.get("idempotency_key"),
         "response": response
     }
