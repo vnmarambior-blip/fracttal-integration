@@ -927,6 +927,38 @@ def list_horometer_write_intents(status):
         connection.close()
 
 
+def verify_table_has_identity(table_name="horometer_updates"):
+    """Verifica que la tabla tenga columna identity (causa H1).
+
+    OUTPUT INSERTED.id solo es confiable si la tabla es identity.
+    """
+
+    connection = get_connection()
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            SELECT OBJECTPROPERTY(OBJECT_ID(?), 'TableHasIdentity')
+            """,
+            (table_name,),
+        )
+
+        row = cursor.fetchone()
+        has_identity = bool(row and row[0])
+
+        if not has_identity:
+            raise PersistenceError(
+                "H1 sin verificar: la tabla "
+                f"{table_name} no tiene columna identity."
+            )
+
+        return True
+    finally:
+        cursor.close()
+        connection.close()
+
+
 def create_horometer_write_intent(
     machinery_id,
     meter_id,

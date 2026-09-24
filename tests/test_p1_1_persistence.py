@@ -242,5 +242,26 @@ class ApplyGuardTests(unittest.TestCase):
         self.assertEqual(mark_calls, [])
 
 
+class TableIdentityTests(unittest.TestCase):
+    def run_verify(self, reads):
+        cursor = FakeCursor(reads)
+        connection = FakeConnection(cursor)
+        with patch.object(
+            database, "get_connection", return_value=connection
+        ):
+            return database.verify_table_has_identity("horometer_updates")
+
+    def test_identity_present_returns_true(self):
+        self.assertTrue(self.run_verify([(1,)]))
+
+    def test_identity_absent_raises_persistence_error(self):
+        with self.assertRaises(database.PersistenceError):
+            self.run_verify([(0,)])
+
+    def test_identity_unknown_raises_persistence_error(self):
+        with self.assertRaises(database.PersistenceError):
+            self.run_verify([None])
+
+
 if __name__ == "__main__":
     unittest.main()
