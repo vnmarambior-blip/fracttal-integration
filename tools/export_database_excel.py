@@ -1,4 +1,4 @@
-import mssql_python
+from database import get_connection
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -8,15 +8,8 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
 # ============================================================
-# CONFIGURACIÓN
+# CONEXIÓN (centralizada en database.get_connection)
 # ============================================================
-
-CONNECTION_STRING = (
-    "Server=localhost;"
-    "Database=FracttalIntegration;"
-    "Trusted_Connection=yes;"
-    "TrustServerCertificate=yes;"
-)
 
 OUTPUT_FILE = "FracttalIntegration.xlsx"
 
@@ -25,14 +18,6 @@ TABLES = [
     "machine_meters",
     "horometer_updates",
 ]
-
-
-# ============================================================
-# CONEXIÓN
-# ============================================================
-
-def get_connection():
-    return mssql_python.connect(CONNECTION_STRING)
 
 
 # ============================================================

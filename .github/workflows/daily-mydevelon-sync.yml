@@ -12,8 +12,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt pytest
+
+      # Solo tests sin red ni SQL: el resto de test_*.py son
+      # scripts manuales que requieren APIs live o SQL Server.
+      - name: Tests seguros
+        run: >
+          python -m pytest -q test_mydevelon_source.py
+          test_import_safety.py test_aux_config.py
+          test_p1_1_idempotency.py test_p1_1_persistence.py
+          test_r15_concurrency.py test_r7_single_event.py
+          test_r5_verification.py test_r3_http_classification.py
+          test_reconcile_intents.py
+
   sync:
     runs-on: ubuntu-latest
+    needs: test
     timeout-minutes: 20
     env:
       FRACTTAL_CLIENT_ID: ${{ secrets.FRACTTAL_CLIENT_ID }}
@@ -22,6 +49,8 @@ jobs:
       MYDEVELON_CLIENT_SECRET: ${{ secrets.MYDEVELON_CLIENT_SECRET }}
       SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
       SYNC_DRY_RUN: ${{ secrets.SYNC_DRY_RUN }}
+      # 1 consulta/día cabe en la cuota MyDevelon (mínimo 15 min).
+      MYDEVELON_SOURCE: live
     steps:
       - name: Descargar código
         uses: actions/checkout@v4

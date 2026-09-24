@@ -26,7 +26,10 @@ METER = {
     "units_code": "HRS",
     "is_counter": True,
     "counter_value": 7595.0,
-    "last_data": {"value": 7595.0}
+    "last_data": {
+        "value": 7595.0,
+        "date": "2026-09-14T15:25:16+00:00"
+    }
 }
 MACHINERY = {"id": 200, "serial": "DHKCEBACPJ0021470"}
 CONFIG = {"sync_enabled": True, "action_policy": "AUTO"}
@@ -69,8 +72,20 @@ class P11IdempotencyTests(unittest.TestCase):
 
         def fake_current_hourmeter(*args, **kwargs):
             if self.put_calls:
-                return {"meter": METER, "value": 7915.7}
-            return {"meter": METER, "value": 7595.0}
+                return {
+                    "meter": METER,
+                    "value": 7915.7,
+                    "last_reading_datetime": datetime(
+                        2026, 9, 16, 15, 25, 16, tzinfo=timezone.utc
+                    )
+                }
+            return {
+                "meter": METER,
+                "value": 7595.0,
+                "last_reading_datetime": datetime(
+                    2026, 9, 14, 15, 25, 16, tzinfo=timezone.utc
+                )
+            }
 
         self.patches = [
             patch.object(api, "get_equipment_by_serial", return_value=EQUIPMENT),
