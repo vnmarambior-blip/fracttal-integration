@@ -3,7 +3,23 @@
 __pycache__/
 *.pyc
 
+# Auth caches and token files: real credentials stay local, never commit.
+.mydevelon_token.txt
+.komtrax_token.txt
+*.token.txt
+.mydevelon_last_fetch.txt
+.komtrax_fleet_state.txt
+.pytest_cache/
+
 FracttalIntegration.xlsx
 ~$*.xlsx
 
 api_backup.py
+
+# Run outputs: dated logs, reports and dry-run dumps stay local.
+*.log
+fleet_readonly_*.json
+fleet_readonly_*.md
+reconcile_dryrun_*.json
+komtrax_horometer_reconciliation_*.md
+_auditv_out.txt
