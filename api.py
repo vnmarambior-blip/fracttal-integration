@@ -1326,7 +1326,8 @@ def process_equipment(
     new_value,
     dry_run=True,
     reading_datetime=None,
-    retrieved_at=None
+    retrieved_at=None,
+    source="MyDevelon"
 ):
     """
     Procesa una lectura de horómetro.
@@ -1382,7 +1383,7 @@ def process_equipment(
             meter_serial=serial,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             decision="REVIEW_SOURCE_DATE",
@@ -1428,7 +1429,7 @@ def process_equipment(
             meter_serial=None,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="NOT_FOUND",
             message=(
@@ -1507,7 +1508,7 @@ def process_equipment(
     try:
         telemetry_config = get_telemetry_sync_config(
             machinery_id=machinery_id,
-            telemetry_source="MYDEVELON"
+            telemetry_source=str(source).strip().upper()
         )
 
     except ValueError as error:
@@ -1517,7 +1518,7 @@ def process_equipment(
             meter_serial=serial,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             error_code="CONFIG_MULTIPLE",
@@ -1540,7 +1541,7 @@ def process_equipment(
             meter_serial=serial,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             error_code="CONFIG_MISSING",
@@ -1565,7 +1566,7 @@ def process_equipment(
             meter_serial=serial,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             error_code="SYNC_DISABLED",
@@ -1594,7 +1595,7 @@ def process_equipment(
             meter_serial=serial,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             error_code="CONFIG_REVIEW",
@@ -1672,7 +1673,7 @@ def process_equipment(
             meter_serial=None,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status=meter_status,
             message=str(error)
@@ -1699,7 +1700,7 @@ def process_equipment(
             meter_serial=None,
             old_value=None,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="METER_NOT_FOUND",
             message=(
@@ -1757,7 +1758,7 @@ def process_equipment(
             meter_serial=meter_serial,
             old_value=current_value,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             idempotency_key=reading_idempotency_key,
@@ -1786,7 +1787,7 @@ def process_equipment(
             meter_serial=meter_serial,
             old_value=current_value,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW",
             idempotency_key=reading_idempotency_key,
@@ -1823,7 +1824,7 @@ def process_equipment(
                 meter_serial=meter_serial,
                 old_value=current_value,
                 new_value=new_value,
-                source="MyDevelon",
+                source=source,
                 reading_date=retrieved_at,
                 status="SKIP_EQUAL",
                 idempotency_key=reading_idempotency_key,
@@ -1882,7 +1883,7 @@ def process_equipment(
             meter_serial=meter_serial,
             old_value=current_value,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="SKIP_EQUAL",
             idempotency_key=reading_idempotency_key,
@@ -1927,7 +1928,7 @@ def process_equipment(
             meter_serial=meter_serial,
             old_value=current_value,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="REVIEW_INCONSISTENCY",
             idempotency_key=reading_idempotency_key,
@@ -1980,7 +1981,7 @@ def process_equipment(
             meter_serial=meter_serial,
             old_value=current_value,
             new_value=new_value,
-            source="MyDevelon",
+            source=source,
             reading_date=retrieved_at,
             status="WOULD_UPDATE",
             idempotency_key=reading_idempotency_key,
@@ -2052,7 +2053,7 @@ def process_equipment(
                 meter_serial=meter_serial,
                 old_value=current_value,
                 new_value=new_value,
-                source="MyDevelon",
+                source=source,
                 reading_date=retrieved_at,
                 status="ERROR",
                 idempotency_key=reading_idempotency_key,
