@@ -1,36 +1,34 @@
-import mssql_python
+from database import get_connection
 
 
-CONNECTION_STRING = (
-    "Server=localhost;"
-    "Database=FracttalIntegration;"
-    "Trusted_Connection=yes;"
-    "TrustServerCertificate=yes;"
-)
+def main():
+
+    connection = get_connection()
+    cursor = connection.cursor()
 
 
-connection = mssql_python.connect(CONNECTION_STRING)
-cursor = connection.cursor()
+    print("=" * 70)
+    print("COLUMNAS TABLA MACHINERY")
+    print("=" * 70)
+
+    cursor.execute("""
+        SELECT
+            COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = ?
+        ORDER BY ORDINAL_POSITION
+    """, ("machinery",))
 
 
-print("=" * 70)
-print("COLUMNAS TABLA MACHINERY")
-print("=" * 70)
+    rows = cursor.fetchall()
 
-cursor.execute("""
-    SELECT
-        COLUMN_NAME
-    FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = ?
-    ORDER BY ORDINAL_POSITION
-""", ("machinery",))
+    for row in rows:
+        print(row[0])
 
 
-rows = cursor.fetchall()
-
-for row in rows:
-    print(row[0])
+    cursor.close()
+    connection.close()
 
 
-cursor.close()
-connection.close()
+if __name__ == "__main__":
+    main()

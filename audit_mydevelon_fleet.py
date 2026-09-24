@@ -11,6 +11,7 @@ from database import (
     get_machinery_by_serial,
     get_telemetry_sync_config
 )
+from mydevelon import AEMP_NAMESPACE
 
 
 XML_FILE = "mydevelon_fleet_minutes.xml"
@@ -23,10 +24,6 @@ ALLOW_OLD_SOURCE_UPDATES = (
     os.getenv("ALLOW_OLD_SOURCE_UPDATES", "false").strip().lower()
     in {"1", "true", "yes", "on"}
 )
-
-AEMP_NAMESPACE = {
-    "aemp": "http://standards.iso.org/iso/15143/-3"
-}
 
 
 def normalize_serial(value):

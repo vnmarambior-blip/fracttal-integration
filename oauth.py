@@ -10,24 +10,30 @@ CLIENT_SECRET = os.getenv("FRACTTAL_CLIENT_SECRET")
 TOKEN_URL = "https://one.fracttal.com/oauth/token"
 
 
-response = requests.post(
-    TOKEN_URL,
-    auth=(CLIENT_ID, CLIENT_SECRET),
-    data={
-        "grant_type": "client_credentials"
-    }
-)
+def main():
 
-print("HTTP:", response.status_code)
+    response = requests.post(
+        TOKEN_URL,
+        auth=(CLIENT_ID, CLIENT_SECRET),
+        data={
+            "grant_type": "client_credentials"
+        }
+    )
 
-if response.ok:
-    token_data = response.json()
+    print("HTTP:", response.status_code)
 
-    print("TOKEN OBTENIDO CORRECTAMENTE")
-    print("Token type:", token_data.get("token_type"))
-    print("Expira en:", token_data.get("expires_in"), "segundos")
-    print("Access token recibido:", "SI" if token_data.get("access_token") else "NO")
+    if response.ok:
+        token_data = response.json()
 
-else:
-    print("ERROR AL OBTENER TOKEN")
-    print(response.text)
+        print("TOKEN OBTENIDO CORRECTAMENTE")
+        print("Token type:", token_data.get("token_type"))
+        print("Expira en:", token_data.get("expires_in"), "segundos")
+        print("Access token recibido:", "SI" if token_data.get("access_token") else "NO")
+
+    else:
+        print("ERROR AL OBTENER TOKEN")
+        print(response.text)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,38 +1,42 @@
-import mssql_python
+from database import get_connection
 
 
-connection = mssql_python.connect(
-    "Server=localhost;Database=FracttalIntegration;Trusted_Connection=yes;TrustServerCertificate=yes;"
-)
+def main():
 
-cursor = connection.cursor()
+    connection = get_connection()
 
-# Verificar tabla
-cursor.execute("""
-    SELECT
-        TABLE_NAME
-    FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_NAME = 'horometer_readings'
-""")
+    cursor = connection.cursor()
 
-table = cursor.fetchone()
+    # Verificar tabla
+    cursor.execute("""
+        SELECT
+            TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_NAME = 'horometer_readings'
+    """)
 
-if table:
-    print("TABLA ENCONTRADA: horometer_readings")
-else:
-    print("ERROR: tabla no encontrada")
+    table = cursor.fetchone()
 
-
-# Contar registros
-cursor.execute("""
-    SELECT COUNT(*)
-    FROM horometer_readings
-""")
-
-count = cursor.fetchone()[0]
-
-print(f"REGISTROS ACTUALES: {count}")
+    if table:
+        print("TABLA ENCONTRADA: horometer_readings")
+    else:
+        print("ERROR: tabla no encontrada")
 
 
-cursor.close()
-connection.close()
+    # Contar registros
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM horometer_readings
+    """)
+
+    count = cursor.fetchone()[0]
+
+    print(f"REGISTROS ACTUALES: {count}")
+
+
+    cursor.close()
+    connection.close()
+
+
+if __name__ == "__main__":
+    main()

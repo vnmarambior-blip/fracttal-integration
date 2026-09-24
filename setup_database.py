@@ -1,16 +1,4 @@
-import mssql_python
-
-
-CONNECTION_STRING = (
-    "Server=localhost;"
-    "Database=FracttalIntegration;"
-    "Trusted_Connection=yes;"
-    "TrustServerCertificate=yes;"
-)
-
-
-def get_connection():
-    return mssql_python.connect(CONNECTION_STRING)
+from database import get_connection
 
 
 def table_exists(cursor, table_name):
