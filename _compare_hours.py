@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """Comparacion horometros: Komtrax vs Fracttal (READ-ONLY)."""
 import os
-import sys
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
-sys.path.insert(0, r"C:\Users\vn246\Documents\Code\fracttal-integration")
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -245,105 +243,110 @@ def decide_comparison(kt_val, ft_val, kt_dt=None, ft_dt=None):
         return "REVIEW_OLD_SOURCE"
     return "UPDATE"
 
-# Main
-print("=" * 90)
-print("COMPARACION HOROMETROS: Komtrax vs Fracttal (READ-ONLY)")
-print("=" * 90)
-print()
 
-print("1. Autenticando Komtrax...")
-kt_token = get_komtrax_token_cached()
-print("   OK")
+def main():
+    print("=" * 90)
+    print("COMPARACION HOROMETROS: Komtrax vs Fracttal (READ-ONLY)")
+    print("=" * 90)
+    print()
 
-print("2. Obteniendo flota Komtrax...")
-try:
-    kt_pages = get_komtrax_fleet_all(kt_token)
-except KomtraxFleetError as error:
-    print(str(error))
-    raise SystemExit(0)
-kt_data = {}
-for kt_xml in kt_pages:
-    kt_data.update(parse_komtrax_hours(kt_xml))
-print(f"   Páginas Komtrax: {len(kt_pages)}")
-print(f"   Equipos Komtrax parseados: {len(kt_data)}")
+    print("1. Autenticando Komtrax...")
+    kt_token = get_komtrax_token_cached()
+    print("   OK")
 
-print("3. Autenticando Fracttal...")
-ft_token = get_fracttal_token()
-print("   OK")
-
-print("4. Obteniendo equipos Fracttal...")
-ft_items = get_fracttal_items(ft_token)
-print(f"   {len(ft_items)} equipos obtenidos")
-
-print()
-print("=" * 90)
-print(f"{'Serial':<8} {'Komtrax h':<12} {'Komtrax dt':<22} {'Fracttal h':<12} {'Fracttal dt':<22} {'Delta':<8} {'Resultado'}")
-print("=" * 90)
-
-match_count = 0
-skip_count = 0
-review_count = 0
-inconsistency_count = 0
-error_count = 0
-
-for mach in KOMTRAX_MACHINES:
-    serial = mach["serial"]
-    unit = mach["unit"]
-
-    kt = kt_data.get(serial)
-    gap = classify_komtrax_gap(kt)
-    if gap != "OK":
-        print(f"{serial:<8} {'N/A':<12} {'N/A':<22} {'N/A':<12} {'N/A':<22} {'N/A':<8} REVIEW_INCONSISTENCY: Komtrax {gap}")
-        inconsistency_count += 1
-        continue
-
-    kt_hours = kt["hours"]
-    kt_dt = kt["datetime"]
-
-    ft_result = get_fracttal_hourmeter(ft_token, unit, ft_items)
-    if "error" in ft_result:
-        print(f"{serial:<8} {str(kt_hours):<12} {str(kt_dt):<22} {'N/A':<12} {'N/A':<22} {'N/A':<8} ERROR: {ft_result['error'][:50]}")
-        error_count += 1
-        continue
-
-    ft_value = ft_result["value"]
-    ft_date = ft_result["date"]
-    if ft_value is None:
-        print(f"{serial:<8} {str(kt_hours):<12} {str(kt_dt):<22} {'N/A':<12} {'N/A':<22} {'N/A':<8} ERROR: Fracttal sin last_data")
-        error_count += 1
-        continue
-
+    print("2. Obteniendo flota Komtrax...")
     try:
-        kt_val = round(float(kt_hours), 2)
-        ft_val = round(float(ft_value), 2)
-    except (ValueError, TypeError):
-        print(f"{serial:<8} {str(kt_hours):<12} {str(kt_dt):<22} {str(ft_value):<12} {str(ft_date):<22} {'N/A':<8} ERROR: No numerico")
-        error_count += 1
-        continue
+        kt_pages = get_komtrax_fleet_all(kt_token)
+    except KomtraxFleetError as error:
+        print(str(error))
+        raise SystemExit(0)
+    kt_data = {}
+    for kt_xml in kt_pages:
+        kt_data.update(parse_komtrax_hours(kt_xml))
+    print(f"   Páginas Komtrax: {len(kt_pages)}")
+    print(f"   Equipos Komtrax parseados: {len(kt_data)}")
 
-    delta = round(kt_val - ft_val, 2)
+    print("3. Autenticando Fracttal...")
+    ft_token = get_fracttal_token()
+    print("   OK")
 
-    result = decide_comparison(kt_val, ft_val, kt_dt, ft_date)
-    if result == "SKIP_EQUAL":
-        skip_count += 1
-    elif result == "UPDATE":
-        match_count += 1
-    else:
-        review_count += 1
+    print("4. Obteniendo equipos Fracttal...")
+    ft_items = get_fracttal_items(ft_token)
+    print(f"   {len(ft_items)} equipos obtenidos")
 
-    kt_dt_str = kt_dt.strftime("%Y-%m-%d %H:%M") if kt_dt else "N/A"
-    ft_dt_str = ft_date[:19] if ft_date else "N/A"
-    print(f"{serial:<8} {kt_val:<12.2f} {kt_dt_str:<22} {ft_val:<12.2f} {ft_dt_str:<22} {delta:+8.2f} {result}")
+    print()
+    print("=" * 90)
+    print(f"{'Serial':<8} {'Komtrax h':<12} {'Komtrax dt':<22} {'Fracttal h':<12} {'Fracttal dt':<22} {'Delta':<8} {'Resultado'}")
+    print("=" * 90)
 
-print("=" * 90)
-print()
-print(f"Total evaluados: {len(KOMTRAX_MACHINES)}")
-print(f"MATCH (UPDATE): {match_count}")
-print(f"SKIP_EQUAL: {skip_count}")
-print(f"REVIEW_OLD_SOURCE: {review_count}")
-print(f"REVIEW_INCONSISTENCY: {inconsistency_count}")
-print(f"ERROR: {error_count}")
-print()
-print("GETs realizados: Komtrax fleet(1) + Fracttal items(3 pag) + Fracttal meters(13)")
-print("PUT/POST/PATCH/DELETE: 0")
-print("Cambios SQL: 0")
+    match_count = 0
+    skip_count = 0
+    review_count = 0
+    inconsistency_count = 0
+    error_count = 0
+
+    for mach in KOMTRAX_MACHINES:
+        serial = mach["serial"]
+        unit = mach["unit"]
+
+        kt = kt_data.get(serial)
+        gap = classify_komtrax_gap(kt)
+        if gap != "OK":
+            print(f"{serial:<8} {'N/A':<12} {'N/A':<22} {'N/A':<12} {'N/A':<22} {'N/A':<8} REVIEW_INCONSISTENCY: Komtrax {gap}")
+            inconsistency_count += 1
+            continue
+
+        kt_hours = kt["hours"]
+        kt_dt = kt["datetime"]
+
+        ft_result = get_fracttal_hourmeter(ft_token, unit, ft_items)
+        if "error" in ft_result:
+            print(f"{serial:<8} {str(kt_hours):<12} {str(kt_dt):<22} {'N/A':<12} {'N/A':<22} {'N/A':<8} ERROR: {ft_result['error'][:50]}")
+            error_count += 1
+            continue
+
+        ft_value = ft_result["value"]
+        ft_date = ft_result["date"]
+        if ft_value is None:
+            print(f"{serial:<8} {str(kt_hours):<12} {str(kt_dt):<22} {'N/A':<12} {'N/A':<22} {'N/A':<8} ERROR: Fracttal sin last_data")
+            error_count += 1
+            continue
+
+        try:
+            kt_val = round(float(kt_hours), 2)
+            ft_val = round(float(ft_value), 2)
+        except (ValueError, TypeError):
+            print(f"{serial:<8} {str(kt_hours):<12} {str(kt_dt):<22} {str(ft_value):<12} {str(ft_date):<22} {'N/A':<8} ERROR: No numerico")
+            error_count += 1
+            continue
+
+        delta = round(kt_val - ft_val, 2)
+
+        result = decide_comparison(kt_val, ft_val, kt_dt, ft_date)
+        if result == "SKIP_EQUAL":
+            skip_count += 1
+        elif result == "UPDATE":
+            match_count += 1
+        else:
+            review_count += 1
+
+        kt_dt_str = kt_dt.strftime("%Y-%m-%d %H:%M") if kt_dt else "N/A"
+        ft_dt_str = ft_date[:19] if ft_date else "N/A"
+        print(f"{serial:<8} {kt_val:<12.2f} {kt_dt_str:<22} {ft_val:<12.2f} {ft_dt_str:<22} {delta:+8.2f} {result}")
+
+    print("=" * 90)
+    print()
+    print(f"Total evaluados: {len(KOMTRAX_MACHINES)}")
+    print(f"MATCH (UPDATE): {match_count}")
+    print(f"SKIP_EQUAL: {skip_count}")
+    print(f"REVIEW_OLD_SOURCE: {review_count}")
+    print(f"REVIEW_INCONSISTENCY: {inconsistency_count}")
+    print(f"ERROR: {error_count}")
+    print()
+    print("GETs realizados: Komtrax fleet(1) + Fracttal items(3 pag) + Fracttal meters(13)")
+    print("PUT/POST/PATCH/DELETE: 0")
+    print("Cambios SQL: 0")
+
+
+if __name__ == "__main__":
+    main()
