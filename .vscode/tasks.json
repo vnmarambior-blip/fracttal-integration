@@ -1,0 +1,77 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "🚀 Run All Sync (Dry-Run)",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": ["run_all_sync.py"],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Ejecuta MyDevelon (fixture) + Komtrax (requiere --live o fixture)"
+        },
+        {
+            "label": "🚀 Run All Sync PRODUCCIÓN (--live)",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": ["run_all_sync.py", "--live"],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Ejecuta MyDevelon + Komtrax EN VIVO -> Fracttal (SYNC_DRY_RUN=false requerido en .env)"
+        },
+        {
+            "label": "🚀 Run All Sync PRODUCCIÓN + Reporte",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": [
+                "run_all_sync.py",
+                "--live",
+                "--report",
+                "ejecucion_${input:date}.md"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Ejecución completa en vivo con reporte markdown"
+        },
+        {
+            "label": "🔧 MyDevelon Only (--live)",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": ["run_mydevelon_sync.py", "--live"],
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "🔧 Komtrax Only (--live)",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": ["run_komtrax_sync.py", "--live"],
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "🧪 Run All Tests",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": ["-m", "pytest", "-q"],
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
+            "label": "📦 Install Dependencies",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\pip.exe",
+            "args": ["install", "-r", "requirements.txt"],
+            "group": "build",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "date",
+            "type": "promptString",
+            "description": "Fecha para el reporte (YYYYMMDD)",
+            "default": "20260925"
+        }
+    }
+}

@@ -1,0 +1,85 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🚀 Run All Sync (Dry-Run)",
+            "type": "python",
+            "request": "launch",
+            "module": "run_all_sync",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "🚀 Run All Sync (PRODUCCIÓN --live)",
+            "type": "python",
+            "request": "launch",
+            "module": "run_all_sync",
+            "args": ["--live"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "SYNC_DRY_RUN": "false"
+            }
+        },
+        {
+            "name": "🚀 Run All Sync (PRODUCCIÓN --live + reporte)",
+            "type": "python",
+            "request": "launch",
+            "module": "run_all_sync",
+            "args": ["--live", "--report", "ejecucion_${input:date}.md"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "SYNC_DRY_RUN": "false"
+            }
+        },
+        {
+            "name": "🔧 Run MyDevelon Only (--live)",
+            "type": "python",
+            "request": "launch",
+            "module": "run_mydevelon_sync",
+            "args": ["--live"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "SYNC_DRY_RUN": "false"
+            }
+        },
+        {
+            "name": "🔧 Run Komtrax Only (--live)",
+            "type": "python",
+            "request": "launch",
+            "module": "run_komtrax_sync",
+            "args": ["--live"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "SYNC_DRY_RUN": "false"
+            }
+        },
+        {
+            "name": "🧪 Run Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["-q"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "date",
+            "type": "promptString",
+            "description": "Fecha para el reporte (YYYYMMDD)",
+            "default": "20260925"
+        }
+    ]
+}
