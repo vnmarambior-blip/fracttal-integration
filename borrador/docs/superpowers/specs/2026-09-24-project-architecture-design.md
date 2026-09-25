@@ -30,3 +30,9 @@
 ## No-objetivos
 - No implementa features ni migra código; solo describe y valida.
 - No sustituye revisión humana de decisiones arquitectónicas.
+
+## Related Skills
+
+- **spec-driven-qa** — ciclo que implementa contra spec; esta skill solo mapea
+- **audit-project** — auditoría read-only de requisitos; esta skill mapea arquitectura
+- **python-clean-code** — validar calidad en componentes mapeados

@@ -39,3 +39,9 @@ contraseña.
 3. Ejecuta **Run workflow** y revisa su registro.
 4. Confirma que los resultados esperados aparecen en la tabla de auditoría.
 5. Solo entonces cambia `SYNC_DRY_RUN` a `false`.
+
+## Related Skills
+
+- **fracttal-integration** — workflow usa API Fracttal + SQL audit
+- **telemetry-audit** — validar resultados en auditoría
+- **python-clean-code** — mantener calidad en CI

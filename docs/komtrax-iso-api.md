@@ -124,3 +124,10 @@ sin algunos ítems (p. ej. sin `CumulativeOperatingHours`).
   (EquipmentID = Customer Machine No.).
 - Alcance: SPEC actual excluye OEMs no-DEVELON → requiere decisión
   (nuevo SPEC o extensión) antes de sincronizar Komatsu a Fracttal.
+
+## Related Skills
+
+- **aemp-integration** — arquitectura multi-OEM ISO 15143-3, parser namespace-agnostic
+- **telemetry-audit** — validar freshness, retención, gap de datos
+- **data-quality** — clasificar `CumulativeOperatingHours` ausente, 429/401/500
+- **fracttal-integration** — mapeo `SerialNumber`→`field_4`, `EquipmentID`→`code`, `is_serial_control=False`

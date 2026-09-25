@@ -254,3 +254,12 @@ Expected: 151+ new tests PASS, no regressions.
 git add run_komtrax_sync.py test_komtrax_sync.py PROJECT_SPEC.md
 git commit -m "feat: gate komtrax productive sync on Regla 0/H1"
 ```
+
+## Related Skills
+
+- **aemp-integration** — parser Komtrax ISO 15143-3, quota guard, token cache
+- **fracttal-integration** — `source="Komtrax"` en `process_equipment`, idempotencia P1.1
+- **telemetry-audit** — validar `decide_comparison`, gates Regla 0/H1
+- **data-quality** — normalización espacios `CF 01`→`CF01`, seriales huérfanos `19144`→`CF05`
+- **spec-driven-qa** — implementar task-by-task contra PROJECT_SPEC.md
+- **python-clean-code** / **clean-*** — calidad en executor y tests

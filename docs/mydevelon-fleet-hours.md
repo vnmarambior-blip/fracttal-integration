@@ -70,3 +70,10 @@ Authorization: Bearer <authorizationToken>
   hours y su `@datetime`.
 - Namespace: `http://standards.iso.org/iso/15143/-3`
   (`AEMP_NAMESPACE` único en `mydevelon.py`).
+
+## Related Skills
+
+- **aemp-integration** — parser AEMP 2.0 ISO 15143-3, namespace `http://standards.iso.org/iso/15143/-3`
+- **telemetry-audit** — validar `CumulativeOperatingHours`/`Hour` y `@datetime`
+- **data-quality** — aislar `Hour` vacío/no-numérico por equipo (Regla 8)
+- **fracttal-integration** — mapeo `PIN`→`serial`, `EquipmentID`→`code`

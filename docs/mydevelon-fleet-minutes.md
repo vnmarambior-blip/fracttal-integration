@@ -77,3 +77,10 @@ parsear por nombre local si se unifica).
 - Cuota observada: ~1 consulta cada 15 min (guardián en `mydevelon.py`,
   `QuotaExceededError`, intervalo configurable).
 - Auth: Bearer con token cacheado (`get_cached_token`).
+
+## Related Skills
+
+- **aemp-integration** — parser AEMP 2.0 ISO 15143-3, namespace `http://standards.iso.org/iso/15143/-3`
+- **telemetry-audit** — validar `CumulativeOperatingHours`/`Hour` y `@datetime`
+- **data-quality** — aislar `Hour` vacío/no-numérico por equipo (Regla 8)
+- **fracttal-integration** — mapeo `PIN`→`serial`, `EquipmentID`→`code`

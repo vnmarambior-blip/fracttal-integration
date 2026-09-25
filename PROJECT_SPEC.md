@@ -263,3 +263,15 @@ El proyecto se considera estabilizado cuando:
 * **Fase 2** — Reglas 3, 6, 20 (clasificación, auditoría, resultado de corrida).
 * **Fase 3** — Reglas 8, 9, 10, 11, 12, 19, 21, 22 (robustez de datos + MyDevelon + Komtrax).
 * **Fase 4** — Reglas 1, 2, 13, 14, 16, 17, 18 + política multi-horómetro y runbook MH46.
+
+## Related Skills
+
+Cuando trabajes con este spec, invoca las skills relevantes:
+
+- **telemetry-audit** — para validar reglas de auditoría (Reglas 0, 5, 6, 20) y reconciliación
+- **data-quality** — para clasificar inconsistencias (Reglas 8, 9, 11, 12, 13, 21, 22)
+- **aemp-integration** — para arquitectura multi-OEM y parsers ISO 15143-3 (Regla 21)
+- **fracttal-integration** — para interacciones Fracttal API + SQL control (Reglas 3, 4, 5, 7, 14, 16)
+- **python-clean-code** / **clean-*** — para calidad de código al implementar reglas (Regla 17)
+- **boy-scout** — mejoras incrementales mientras editas (Regla 17)
+- **spec-driven-qa** — ciclo de auditoría/implementación gobernado por este spec

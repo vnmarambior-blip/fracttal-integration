@@ -29,3 +29,11 @@ Files named `test_*` without `test_*` functions are manual probes (see `tools/` 
 ## Configuration
 
 Copy `.env.example` to `.env` and fill real values locally. `.env` is gitignored and must never be committed.
+
+## Related Skills
+
+- **telemetry-audit** — para `run_mydevelon_sync.py`, `reconcile.py`, `_compare_hours.py`
+- **fracttal-integration** — para API Fracttal, meters, readings, idempotencia
+- **data-quality** — para validar datos MyDevelon/Komtrax vs Fracttal
+- **aemp-integration** — para parser Komtrax ISO 15143-3
+- **python-clean-code** / **clean-*** — para mantener calidad en entry points

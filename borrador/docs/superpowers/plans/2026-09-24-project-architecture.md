@@ -116,3 +116,9 @@ Expected: ninguna skill de arquitectura; a lo sumo clean skills si hay código.
 
 Razonar (sin ejecutar): sin `PROJECT_SPEC.md` genera `ARCHITECTURE.md` con trazabilidad `NOT_FOUND`; en repo TS no menciona `pytest` ni reglas Python.
 Expected: cuerpo ya lo cubre (paso 1 del workflow + sin comandos hardcodeados).
+
+## Related Skills
+
+- **spec-driven-qa** — generar ARCHITECTURE.md trazado a PROJECT_SPEC.md
+- **audit-project** — delimitar alcance vs auditoría de requisitos
+- **python-clean-code** — calidad en templates y validaciones
