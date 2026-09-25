@@ -214,18 +214,11 @@ class EarlyReturnConfigTests(unittest.TestCase):
         self.assertEqual(self.saved[0]["write_status"], "BLOCKED")
 
 
-class LiveEmptyFallbackTests(unittest.TestCase):
-    """Fleet live vacia (HTTP 200, 0 bytes) cae a fixture sin abortar."""
+class LiveAbortTests(unittest.TestCase):
+    """Modo --live aborta ante cuota o flota vacia. Sin fallback a fixture."""
 
-    def test_live_empty_falls_back_to_fixture(self):
-        calls = []
+    def run_live_main(self, resolve_side_effect):
         process_calls = []
-
-        def fake_resolve(**kwargs):
-            calls.append(kwargs.get("mode"))
-            if kwargs.get("mode") == "live":
-                return ""
-            return "<fleet/>"
 
         patches = [
             patch.object(
@@ -234,7 +227,7 @@ class LiveEmptyFallbackTests(unittest.TestCase):
             ),
             patch.object(
                 run_mydevelon_sync, "resolve_fleet_xml_text",
-                side_effect=fake_resolve,
+                side_effect=resolve_side_effect,
             ),
             patch.object(
                 run_mydevelon_sync, "parse_fleet_xml",
@@ -261,35 +254,41 @@ class LiveEmptyFallbackTests(unittest.TestCase):
         for item in patches:
             item.start()
         try:
-            run_mydevelon_sync.main(["--live"])
+            with self.assertRaises(RuntimeError):
+                run_mydevelon_sync.main(["--live"])
         finally:
             for item in reversed(patches):
                 item.stop()
 
-        self.assertEqual(calls, ["live", "file"])
-        self.assertEqual(len(process_calls), 1)
-        self.assertEqual(process_calls[0]["serial"], SERIAL)
+        return process_calls
 
-    def test_live_quota_falls_back_to_fixture(self):
+    def test_live_empty_aborts_without_fixture(self):
+        def fake_resolve(**kwargs):
+            assert kwargs.get("mode") == "live"
+            return ""
+
+        process_calls = self.run_live_main(fake_resolve)
+
+        self.assertEqual(process_calls, [])
+
+    def test_live_quota_aborts_without_fixture(self):
         import mydevelon
 
-        calls = []
-        process_calls = []
-
         def fake_resolve(**kwargs):
-            calls.append(kwargs.get("mode"))
-            if kwargs.get("mode") == "live":
-                raise mydevelon.QuotaExceededError("cuota")
-            return "<fleet/>"
+            assert kwargs.get("mode") == "live"
+            raise mydevelon.QuotaExceededError("cuota")
+
+        process_calls = self.run_live_main(fake_resolve)
+
+        self.assertEqual(process_calls, [])
+
+    def test_file_mode_still_uses_fixture(self):
+        process_calls = []
 
         patches = [
             patch.object(
-                run_mydevelon_sync, "get_cached_token",
-                return_value="t",
-            ),
-            patch.object(
                 run_mydevelon_sync, "resolve_fleet_xml_text",
-                side_effect=fake_resolve,
+                return_value="<fleet/>",
             ),
             patch.object(
                 run_mydevelon_sync, "parse_fleet_xml",
@@ -298,10 +297,6 @@ class LiveEmptyFallbackTests(unittest.TestCase):
                     "operating_hours": 10.0,
                     "operating_hours_datetime": READING_DATETIME,
                 }],
-            ),
-            patch.object(
-                run_mydevelon_sync, "get_mydevelon_access_token",
-                return_value="t",
             ),
             patch.object(
                 run_mydevelon_sync, "get_fracttal_access_token",
@@ -316,13 +311,13 @@ class LiveEmptyFallbackTests(unittest.TestCase):
         for item in patches:
             item.start()
         try:
-            run_mydevelon_sync.main(["--live"])
+            run_mydevelon_sync.main([])
         finally:
             for item in reversed(patches):
                 item.stop()
 
-        self.assertEqual(calls, ["live", "file"])
         self.assertEqual(len(process_calls), 1)
+        self.assertEqual(process_calls[0]["serial"], SERIAL)
 
 
 if __name__ == "__main__":

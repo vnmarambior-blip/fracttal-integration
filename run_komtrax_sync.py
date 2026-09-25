@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Ejecutor Komtrax -> Fracttal en modo DRY-RUN (READ-ONLY efectivo).
+"""Ejecutor Komtrax -> Fracttal (Fracttal intocable + SQL auditable).
 
 Flujo: Komtrax -> normalizacion -> comparacion -> decision ->
 ``process_equipment(source="Komtrax")`` -> reporte.
 
-Sin escrituras productivas: SYNC_DRY_RUN=true por defecto y cualquier
-intento de modo productivo aborta antes de red o writes (R0/H1 abiertos).
+Semántica dry_run (proyecto): ningún PUT/POST/PATCH/DELETE a Fracttal;
+SQL solo recibe filas WOULD_UPDATE/revisión. El modo productivo de este
+runner está bloqueado por diseño (SystemExit 2) hasta habilitarlo.
 """
 
 import argparse
@@ -14,19 +15,12 @@ from datetime import datetime, timezone
 
 import api
 import komtrax
+from oem_common import env_flag
 from _compare_hours import (
     KOMTRAX_MACHINES,
     get_fracttal_hourmeter,
     get_fracttal_items,
 )
-
-
-def env_flag(name, default=False):
-    """Convierte una variable de entorno booleana de manera predecible."""
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_args(argv=None):
@@ -54,7 +48,7 @@ def main(argv=None, now=None):
     args = parse_args(argv)
 
     if not dry_run:
-        print("BLOQUEADO: SYNC_DRY_RUN=false con R0/H1 abiertos; "
+        print("BLOQUEADO: modo productivo de Komtrax deshabilitado; "
               "solo dry-run permitido.")
         raise SystemExit(2)
 
