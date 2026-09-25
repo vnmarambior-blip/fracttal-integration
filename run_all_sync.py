@@ -40,6 +40,32 @@ def run_sync(script_name, args, description, env=None):
         return False, e.stdout
 
 
+def komtrax_args_from(extra_args):
+    """Filtra solo los args que run_komtrax_sync.py acepta.
+
+    Komtrax soporta --live y --fleet-xml <path>. Cualquier otro
+    (ej. --report, --record) lo abortaria con exit 2. El reporte
+    consolidado es responsabilidad del orquestador, no del worker.
+    """
+
+    filtered = []
+    skip_next = False
+
+    for index, arg in enumerate(extra_args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == "--live":
+            filtered.append(arg)
+        elif arg == "--fleet-xml":
+            filtered.append(arg)
+            if index + 1 < len(extra_args) and not extra_args[index + 1].startswith("--"):
+                filtered.append(extra_args[index + 1])
+                skip_next = True
+
+    return filtered
+
+
 def main():
     # Argumentos pasados al script
     extra_args = sys.argv[1:]
@@ -73,9 +99,10 @@ def main():
     )
 
     # 2. Komtrax segundo (siempre, aunque MyDevelon falle)
+    # Solo --live / --fleet-xml: --report y otros son de MyDevelon.
     ok_kt, _ = run_sync(
         "run_komtrax_sync.py",
-        extra_args,
+        komtrax_args_from(extra_args),
         "Komtrax -> Fracttal",
         env=env
     )

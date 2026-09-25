@@ -43,3 +43,34 @@ def test_both_fail_exits_one():
     with patch.object(run_all_sync.subprocess, "run", side_effect=fake_run):
         with patch.object(sys, "argv", ["run_all_sync.py"]):
             assert run_all_sync.main() == 1
+
+
+def test_report_not_forwarded_to_komtrax():
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return _result(0)
+
+    with patch.object(run_all_sync.subprocess, "run", side_effect=fake_run):
+        with patch.object(
+            sys, "argv",
+            ["run_all_sync.py", "--live", "--report", "r.md"],
+        ):
+            assert run_all_sync.main() == 0
+
+    assert calls[0] == [
+        run_all_sync.sys.executable,
+        "run_mydevelon_sync.py", "--live", "--report", "r.md",
+    ]
+    assert calls[1] == [
+        run_all_sync.sys.executable,
+        "run_komtrax_sync.py", "--live",
+    ]
+
+
+def test_fleet_xml_value_forwarded_to_komtrax():
+    assert run_all_sync.komtrax_args_from(
+        ["--live", "--fleet-xml", "f.xml", "--report", "r.md"]
+    ) == ["--live", "--fleet-xml", "f.xml"]
+    assert run_all_sync.komtrax_args_from([]) == []
