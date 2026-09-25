@@ -16,7 +16,15 @@ from api import process_equipment
 from database import save_horometer_update
 from mydevelon import FleetEmptyError, QuotaExceededError
 from mydevelon import get_access_token as get_mydevelon_access_token
-from mydevelon import get_cached_token, get_fleet_xml, parse_fleet_xml
+from mydevelon import (
+    concat_fleet_pages,
+    get_cached_token,
+    get_fleet_xml,
+    get_fleet_xml_pages,
+    is_fetch_allowed,
+    parse_fleet_xml,
+    record_fetch,
+)
 from mydevelon import resolve_fleet_xml_text
 
 
@@ -131,8 +139,6 @@ def _main(args, dry_run):
     print("=" * 70)
     print("SINCRONIZACIÓN DIARIA: MYDEVELON -> FRACTTAL")
     print(f"Modo: {'SIMULACIÓN' if dry_run else 'PRODUCCIÓN'}")
-    print(f"Fuente MyDevelon: {mode}")
-    print("=" * 70)
 
     token_ttl = int(
         os.getenv(
@@ -152,38 +158,42 @@ def _main(args, dry_run):
         )
 
         try:
-            fleet_xml = resolve_fleet_xml_text(
-                mode="live",
-                fleet_xml_path=args.fleet_xml,
-                state_path=os.getenv(
-                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
-                ),
-                fetcher=lambda: fetch_fleet(mydevelon_token),
-                record_path=args.record,
+            state_path = os.getenv(
+                "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
+            )
+            if not is_fetch_allowed(
+                state_path,
                 min_interval_seconds=args.min_interval_seconds,
-            )
-            if not fleet_xml or not fleet_xml.strip():
+            ):
+                raise QuotaExceededError(
+                    "Último fetch hace menos de "
+                    f"{args.min_interval_seconds} segundos; "
+                    "usa modo file o espera."
+                )
+            xml_pages = get_fleet_xml_pages(mydevelon_token)
+            if not xml_pages:
                 raise FleetEmptyError("Fleet live vacía (HTTP 200, 0 bytes).")
+            record_fetch(state_path)
+            if args.record:
+                save_fleet_xml_snapshot(xml_pages[0], args.record)
+            if len(xml_pages) > 1:
+                print(f"Paginación: {len(xml_pages)} páginas recorridas.")
+            fleet = concat_fleet_pages(xml_pages)
+            if not fleet:
+                raise FleetEmptyError("Fleet live sin equipos auditables.")
         except QuotaExceededError as error:
-            print(f"[CUOTA] {error} Cayendo a fixture: {args.fleet_xml}")
-            fleet_xml = resolve_fleet_xml_text(
-                mode="file",
-                fleet_xml_path=args.fleet_xml,
-                state_path=os.getenv(
-                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
-                ),
-                fetcher=lambda: fetch_fleet(""),
-            )
+            raise RuntimeError(
+                "Fetch MyDevelon bloqueado por cuota mínima "
+                f"({error}). Sin fallback a fixture en modo live: "
+                "espera o ejecuta sin --live."
+            ) from error
         except FleetEmptyError as error:
-            print(f"[AVISO] {error} Cayendo a fixture: {args.fleet_xml}")
-            fleet_xml = resolve_fleet_xml_text(
-                mode="file",
-                fleet_xml_path=args.fleet_xml,
-                state_path=os.getenv(
-                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
-                ),
-                fetcher=lambda: fetch_fleet(""),
-            )
+            raise RuntimeError(
+                f"Fleet live vacía ({error}). Sin fallback a fixture "
+                "en modo live: verifica la API o ejecuta sin --live."
+            ) from error
+
+        actual_source = "live"
     else:
         fleet_xml = resolve_fleet_xml_text(
             mode="file",
@@ -194,7 +204,13 @@ def _main(args, dry_run):
             fetcher=lambda: fetch_fleet(""),
         )
 
-    fleet = parse_fleet_xml(fleet_xml)
+        actual_source = f"file:{args.fleet_xml}"
+
+    print(f"Fuente MyDevelon: {actual_source}")
+    print("=" * 70)
+
+    if mode != "live":
+        fleet = parse_fleet_xml(fleet_xml)
     develon_fleet = [
         item for item in fleet
         if str(item.get("oem_name", "")).strip().upper() == TARGET_OEM
@@ -276,6 +292,13 @@ def _main(args, dry_run):
     failures = {"ERROR_UNEXPECTED"}
     if any(result.get("status") in failures for result in results):
         raise RuntimeError("La sincronización terminó con errores inesperados.")
+
+    success = {"VERIFIED", "SKIP_EQUAL", "WOULD_UPDATE"}
+    if results and not any(
+        result.get("status") in success for result in results
+    ):
+        print("COBERTURA BAJA: 0 equipos en estado exitoso.")
+        raise SystemExit(3)
 
 
 if __name__ == "__main__":

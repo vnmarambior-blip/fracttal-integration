@@ -375,3 +375,120 @@ def test_live_empty_fleet_does_not_record_fetch(tmp_path):
 
     assert raised is True
     assert is_fetch_allowed(state, now=now) is True
+
+
+def _page_xml(pin, hours, next_href=None):
+    links = ""
+    if next_href is not None:
+        links = (
+            "<Links><rel>next</rel><href>"
+            + next_href
+            + "</href></Links>"
+        )
+    return (
+        '<?xml version="1.0"?>'
+        '<Fleet snapshotTime="2026-09-24T00:00:00Z">'
+        + links +
+        "<Equipment><EquipmentHeader>"
+        "<OEMName>DEVELON</OEMName><Model>M</Model>"
+        "<EquipmentID>" + pin + "</EquipmentID>"
+        "<SerialNumber>" + pin + "</SerialNumber>"
+        "<PIN>" + pin + "</PIN>"
+        "</EquipmentHeader>"
+        '<CumulativeOperatingHours datetime="2026-09-24T00:00:00Z">'
+        "<Hour>" + str(hours) + "</Hour></CumulativeOperatingHours>"
+        "</Equipment></Fleet>"
+    )
+
+
+def test_pages_single_without_next(monkeypatch):
+    import mydevelon
+
+    xml = _page_xml("P1", 100.0)
+    monkeypatch.setattr(
+        mydevelon, "_fetch_fleet_url", lambda token, url: xml
+    )
+
+    assert mydevelon.get_fleet_xml_pages("t") == [xml]
+
+
+def test_pages_multiple_in_order(monkeypatch):
+    import mydevelon
+
+    pages = {
+        "u1": _page_xml("P1", 100.0, "u2"),
+        "u2": _page_xml("P2", 200.0, "u3"),
+        "u3": _page_xml("P3", 300.0),
+    }
+    monkeypatch.setattr(
+        mydevelon, "_fetch_fleet_url", lambda token, url: pages[url]
+    )
+    monkeypatch.setattr(mydevelon, "FLEET_URL", "u1")
+
+    assert mydevelon.get_fleet_xml_pages("t") == [
+        pages["u1"], pages["u2"], pages["u3"],
+    ]
+
+
+def test_pages_stops_without_next(monkeypatch):
+    import mydevelon
+
+    xml = _page_xml("P1", 100.0)
+    calls = []
+    monkeypatch.setattr(
+        mydevelon, "_fetch_fleet_url",
+        lambda token, url: calls.append(url) or xml,
+    )
+
+    assert mydevelon.get_fleet_xml_pages("t") == [xml]
+    assert len(calls) == 1
+
+
+def test_pages_loop_protection(monkeypatch):
+    import mydevelon
+
+    pages = {
+        "u1": _page_xml("P1", 100.0, "u2"),
+        "u2": _page_xml("P2", 200.0, "u1"),
+    }
+    monkeypatch.setattr(
+        mydevelon, "_fetch_fleet_url", lambda token, url: pages[url]
+    )
+    monkeypatch.setattr(mydevelon, "FLEET_URL", "u1")
+
+    assert mydevelon.get_fleet_xml_pages("t") == [pages["u1"], pages["u2"]]
+
+
+def test_pages_failure_is_not_silent_partial(monkeypatch):
+    import mydevelon
+    import requests
+
+    monkeypatch.setattr(
+        mydevelon, "_fetch_fleet_url",
+        lambda token, url: (_ for _ in ()).throw(
+            requests.exceptions.ConnectTimeout("mock")
+        ) if url == "u2" else _page_xml("P1", 100.0, "u2"),
+    )
+    monkeypatch.setattr(mydevelon, "FLEET_URL", "u1")
+
+    try:
+        mydevelon.get_fleet_xml_pages("t")
+        raised = False
+    except requests.exceptions.ConnectTimeout:
+        raised = True
+
+    assert raised is True
+
+
+def test_concat_dedups_equipment():
+    import mydevelon
+
+    fleet = mydevelon.concat_fleet_pages([
+        _page_xml("P1", 100.0),
+        _page_xml("P1", 999.0),
+        _page_xml("P2", 200.0),
+    ])
+    pins = [item["pin"] for item in fleet]
+
+    assert pins == ["P1", "P2"]
+    assert fleet[0]["operating_hours"] == 100.0

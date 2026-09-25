@@ -146,6 +146,11 @@ def main(argv=None, now=None):
         "ERROR",
     ):
         print(f"{key}: {counts[key]}")
+
+    if len(KOMTRAX_MACHINES) > 0 and counts["UPDATE"] == 0 and counts["SKIP_EQUAL"] == 0:
+        print("COBERTURA BAJA: 0 equipos en estado exitoso.")
+        raise SystemExit(3)
+
     print("PUT/POST/PATCH/DELETE productivos: 0")
 
     return counts

@@ -140,6 +140,97 @@ def get_fleet_xml(token):
     return response.text
 
 
+def _fleet_links(xml_text):
+    """Extrae links {rel: href} del snapshot por nombre local (namespace-agnostic)."""
+
+    links = {}
+
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return links
+
+    for child in root:
+        if child.tag.split("}")[-1] != "Links":
+            continue
+        rel = ""
+        href = ""
+        for node in child:
+            local = node.tag.split("}")[-1]
+            if local == "rel":
+                rel = str(node.text or "").strip().lower()
+            elif local == "href":
+                href = str(node.text or "").strip()
+        if rel and href:
+            links[rel] = href
+
+    return links
+
+
+def _fetch_fleet_url(token, url):
+    """GET de una página Fleet. Sin cuota: el llamador la gestiona."""
+
+    response = requests.get(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/xml",
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    return response.text
+
+
+def get_fleet_xml_pages(token, max_pages=10):
+    """Recorre previous/next/last hasta agotar páginas.
+
+    Retorna la lista de XML en orden. Un fallo HTTP en cualquier
+    página aborta (nunca flota parcial silenciosa). Protección
+    contra loops: URLs visitadas + tope max_pages.
+    """
+
+    pages = []
+    visited = set()
+    url = FLEET_URL
+
+    while url is not None and len(pages) < max_pages:
+        if url in visited:
+            break
+        visited.add(url)
+
+        xml_text = _fetch_fleet_url(token, url)
+        pages.append(xml_text)
+
+        links = _fleet_links(xml_text)
+        url = links.get("next")
+
+    return pages
+
+
+def concat_fleet_pages(xml_pages):
+    """Parsea páginas y concatena equipos sin duplicar (primer PIN gana)."""
+
+    fleet = []
+    seen = set()
+
+    for xml_text in xml_pages:
+        for item in parse_fleet_xml(xml_text):
+            key = (
+                str(item.get("pin") or "").strip().upper()
+                or str(item.get("serial_number") or "").strip().upper()
+                or str(item.get("equipment_id") or "").strip().upper()
+            )
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            fleet.append(item)
+
+    return fleet
+
+
 # ============================================================
 # SINGLE EQUIPMENT SNAPSHOT
 # ============================================================

@@ -124,6 +124,25 @@ def test_executor_import_has_no_side_effects(monkeypatch, capsys):
     assert out == ""
 
 
+def test_zero_success_exits_3(monkeypatch, tmp_path):
+    import run_komtrax_sync
+
+    fleet_file = tmp_path / "fleet.xml"
+    fleet_file.write_text("<Fleet />", encoding="utf-8")
+    monkeypatch.setattr(
+        run_komtrax_sync,
+        "KOMTRAX_MACHINES",
+        [{"serial": "S-ABSENT", "unit": "U9", "model": "M"}],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        run_komtrax_sync.main(
+            ["--fleet-xml", str(fleet_file)], now="2026-09-24T12:00:00+00:00"
+        )
+
+    assert exc.value.code == 3
+
+
 def test_apply_meter_reading_threads_source_to_telemetry_config(monkeypatch):
     import api
     from datetime import datetime, timezone
@@ -141,10 +160,16 @@ def test_apply_meter_reading_threads_source_to_telemetry_config(monkeypatch):
         api, "get_machinery_by_id", lambda mid: {"serial": "55267"}
     )
     seen = []
+    saved = []
     monkeypatch.setattr(
         api,
         "get_telemetry_sync_config",
         lambda machinery_id, telemetry_source: seen.append(telemetry_source),
+    )
+    monkeypatch.setattr(
+        api,
+        "save_horometer_update",
+        lambda **kwargs: saved.append(kwargs),
     )
     base = dict(
         token="t",
@@ -166,3 +191,5 @@ def test_apply_meter_reading_threads_source_to_telemetry_config(monkeypatch):
     with pytest.raises(ValueError, match="CONFIG_MISSING"):
         api.apply_meter_reading(**base)
     assert seen == ["KOMTRAX", "MYDEVELON"]
+
+    assert len(saved) == 0

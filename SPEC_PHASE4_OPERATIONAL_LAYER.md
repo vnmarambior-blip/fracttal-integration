@@ -348,7 +348,7 @@ fracttal-integration/
 │   └── orchestrator.py            # Secuencia: health → mydevelon → komtrax → report
 ├── run_mydevelon_sync.py          # Worker (sin cambios)
 ├── run_komtrax_sync.py            # Worker (sin cambios)
-├── run_all_sync.py                # DEPRECADO → alias a run_sync.py
+├── run_all_sync.py                # Orquestador real (NO deprecado)
 └── reports/
     ├── sync_2026-09-25_09-42.md
     ├── index.json
@@ -378,18 +378,11 @@ fracttal-integration/
 
 | Archivo actual | Acción |
 |----------------|--------|
-| `run_all_sync.py` | **Deprecado** → mantiene compatibilidad, llama a `run_sync.py` internamente |
+| `run_all_sync.py` | **Orquestador real** (no deprecado; `run_sync.py` no existe y no se creará salvo necesidad funcional futura) |
 | `run_mydevelon_sync.py` | Sin cambios (worker) |
 | `run_komtrax_sync.py` | Sin cambios (worker) |
-| `run_sync.py` | **Nuevo entry point único** |
 
-**Alias de compatibilidad:**
-```python
-# run_all_sync.py (mantenido por compat)
-from run_sync import main
-if __name__ == "__main__":
-    main()
-```
+**Alias de compatibilidad:** no aplica (`run_all_sync.py` es el orquestador; no existe `run_sync.py`).
 
 ---
 

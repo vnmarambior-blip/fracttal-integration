@@ -65,6 +65,7 @@ Adicionalmente:
 * `test_p1_1_idempotency.py` debe ejecutarse en CI.
 * `.venv` local debe contener `mssql-python` y `openpyxl` (paridad con CI).
 * Ver Regla 17: la colección no debe producir efectos secundarios.
+* La *ejecución* de tests no debe escribir en la BD productiva: persistencia y red van mockeadas o con conexiones falsas. Ningún test ejecuta PUT/POST/PATCH/DELETE.
 
 ### 2. Dependencias
 
@@ -183,7 +184,7 @@ Lista blanca (logueable): serial, valores, conteos, `event_id`, `error_code`. Li
 
 ### 19. MyDevelon
 
-Validar formato real de respuesta de auth (texto vs JSON, `mydevelon.py:72`), detectar expiración de token, retry con backoff ante transitorios, no asumir paginación: verificar si `/Fleet/1` es total o página (si hay páginas, recorrerlas y distinguir procesados vs disponibles). Validar unidad de `Hour` del lado MyDevelon (horas vs minutos) como ya se hace del lado Fracttal.
+Validar formato real de respuesta de auth (texto vs JSON, `mydevelon.py:72`), detectar expiración de token, retry con backoff ante transitorios, no asumir paginación: verificar si `/Fleet/1` es total o página (si hay páginas, recorrerlas y distinguir procesados vs disponibles). La paginación es obligatoria: si la respuesta incluye links `previous/next/last` con más de una página, el sync debe recorrerlas todas respetando la cuota por URL. Una flota parcial nunca debe reportarse como total. Validar unidad de `Hour` del lado MyDevelon (horas vs minutos) como ya se hace del lado Fracttal.
 
 ### 20. Resultado de corrida
 

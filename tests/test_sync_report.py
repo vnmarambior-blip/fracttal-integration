@@ -49,5 +49,53 @@ class SyncReportTests(unittest.TestCase):
         self.assertIn("RESUMEN", text)
 
 
+class CoverageThresholdTests(unittest.TestCase):
+    """Regla 20: 0 éxitos con equipos procesados -> exit 3."""
+
+    def run_main_with_statuses(self, statuses):
+        calls = {"n": 0}
+
+        def fake_process(**kwargs):
+            status = statuses[calls["n"] % len(statuses)]
+            calls["n"] += 1
+            return {"status": status, "serial": kwargs["serial"]}
+
+        patches = [
+            patch.object(
+                run_mydevelon_sync, "get_fracttal_access_token",
+                return_value="t",
+            ),
+            patch.object(
+                run_mydevelon_sync, "process_equipment",
+                side_effect=fake_process,
+            ),
+            patch.object(
+                run_mydevelon_sync, "save_horometer_update",
+                side_effect=lambda **kw: None,
+                create=True,
+            ),
+        ]
+        for item in patches:
+            item.start()
+        try:
+            run_mydevelon_sync.main([])
+        finally:
+            for item in reversed(patches):
+                item.stop()
+
+    def test_all_review_exits_3(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self.run_main_with_statuses(["REVIEW"])
+
+        self.assertEqual(ctx.exception.code, 3)
+
+    def test_one_success_exits_zero(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory():
+            self.run_main_with_statuses(["REVIEW", "SKIP_EQUAL"])
+
+
 if __name__ == "__main__":
     unittest.main()
