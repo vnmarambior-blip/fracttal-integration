@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from api import get_access_token as get_fracttal_access_token
 from api import process_equipment
 from database import save_horometer_update
+from oem_common import env_flag
 from mydevelon import FleetEmptyError, QuotaExceededError
 from mydevelon import get_access_token as get_mydevelon_access_token
 from mydevelon import get_cached_token, get_fleet_xml, parse_fleet_xml
@@ -27,14 +28,6 @@ DEFAULT_STATE_FILE = ".mydevelon_last_fetch.txt"
 DEFAULT_TOKEN_CACHE = ".mydevelon_token.txt"
 DEFAULT_MIN_INTERVAL_SECONDS = 900
 DEFAULT_TOKEN_TTL_SECONDS = 1800
-
-
-def env_flag(name, default=False):
-    """Convierte una variable de entorno booleana de manera predecible."""
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_reading_datetime(value):
@@ -131,8 +124,6 @@ def _main(args, dry_run):
     print("=" * 70)
     print("SINCRONIZACIÓN DIARIA: MYDEVELON -> FRACTTAL")
     print(f"Modo: {'SIMULACIÓN' if dry_run else 'PRODUCCIÓN'}")
-    print(f"Fuente MyDevelon: {mode}")
-    print("=" * 70)
 
     token_ttl = int(
         os.getenv(
@@ -165,25 +156,18 @@ def _main(args, dry_run):
             if not fleet_xml or not fleet_xml.strip():
                 raise FleetEmptyError("Fleet live vacía (HTTP 200, 0 bytes).")
         except QuotaExceededError as error:
-            print(f"[CUOTA] {error} Cayendo a fixture: {args.fleet_xml}")
-            fleet_xml = resolve_fleet_xml_text(
-                mode="file",
-                fleet_xml_path=args.fleet_xml,
-                state_path=os.getenv(
-                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
-                ),
-                fetcher=lambda: fetch_fleet(""),
-            )
+            raise RuntimeError(
+                "Fetch MyDevelon bloqueado por cuota mínima "
+                f"({error}). Sin fallback a fixture en modo live: "
+                "espera o ejecuta sin --live."
+            ) from error
         except FleetEmptyError as error:
-            print(f"[AVISO] {error} Cayendo a fixture: {args.fleet_xml}")
-            fleet_xml = resolve_fleet_xml_text(
-                mode="file",
-                fleet_xml_path=args.fleet_xml,
-                state_path=os.getenv(
-                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
-                ),
-                fetcher=lambda: fetch_fleet(""),
-            )
+            raise RuntimeError(
+                f"Fleet live vacía ({error}). Sin fallback a fixture "
+                "en modo live: verifica la API o ejecuta sin --live."
+            ) from error
+
+        actual_source = "live"
     else:
         fleet_xml = resolve_fleet_xml_text(
             mode="file",
@@ -193,6 +177,11 @@ def _main(args, dry_run):
             ),
             fetcher=lambda: fetch_fleet(""),
         )
+
+        actual_source = f"file:{args.fleet_xml}"
+
+    print(f"Fuente MyDevelon: {actual_source}")
+    print("=" * 70)
 
     fleet = parse_fleet_xml(fleet_xml)
     develon_fleet = [

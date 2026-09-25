@@ -1368,6 +1368,11 @@ def process_equipment(
 
         dry_run=True
         nunca modifica Fracttal.
+
+        Semántica dry_run (proyecto): dry_run=True = ningún
+        PUT/POST/PATCH/DELETE a Fracttal; SQL solo recibe filas
+        WOULD_UPDATE/revisión. dry_run=False = flujo P1.1
+        completo con PUT.
     """
 
     serial = str(serial).strip().upper()

@@ -36,15 +36,15 @@ SYNC_DRY_RUN=false
 
 ## 2. Comandos de Ejecución
 
-### Comando único (recomendado) — **PRODUCCIÓN por defecto**
+### Comando único (recomendado) — **DRY-RUN por defecto (seguro)**
 ```bash
-# PRODUCCIÓN (--live, SYNC_DRY_RUN=false) — DEFAULT
+# DRY-RUN: fixtures, cero PUTs — DEFAULT
 python run_all_sync.py
 
-# PRODUCCIÓN con reporte
-python run_all_sync.py --report ejecucion_YYYYMMDD.md
+# PRODUCCIÓN (ambos en vivo) — requiere --live explícito
+python run_all_sync.py --live [--report ejecucion_YYYYMMDD.md]
 
-# Simulación (dry-run) — solo si se pasa explícito
+# Simulación explícita
 python run_all_sync.py --dry-run
 ```
 
@@ -58,13 +58,15 @@ python run_komtrax_sync.py --live [--report komtrax_YYYYMMDD.md]
 ```
 
 > El comando único `run_all_sync.py` ejecuta **MyDevelon primero**, espera a que termine, luego **Komtrax**.
-> **Por defecto es PRODUCCIÓN** (`--live`, `SYNC_DRY_RUN=false`). Solo usa `--dry-run` para simular.
+> **Por defecto es DRY-RUN** (fixtures, cero PUTs). Producción solo con `--live` explícito.
 
 ### Modo Dry-Run (seguro, por defecto)
 ```bash
 python run_mydevelon_sync.py        # usa fixture local, 0 red
 python run_komtrax_sync.py          # requiere --fleet-xml o --live
 ```
+
+> **Semántica dry_run (proyecto):** `dry_run=True` = ningún PUT/POST/PATCH/DELETE a Fracttal; SQL solo recibe filas `WOULD_UPDATE`/revisión. `dry_run=False` = flujo P1.1 completo con PUT.
 
 ---
 
