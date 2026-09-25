@@ -323,3 +323,55 @@ class MH18RegressionTests(TestCase):
         self.assertEqual(
             validate_reading_is_newer(moment, moment), "SKIP_EQUAL"
         )
+
+
+def test_get_access_token_rejects_json_error(monkeypatch):
+    import mydevelon
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"code":500,"msg":"ID not registered in aemp."}'
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "mydevelon.requests.post", lambda *a, **k: FakeResponse()
+    )
+    monkeypatch.setattr(
+        "mydevelon.CLIENT_ID", "dummy-id", raising=False
+    )
+    monkeypatch.setattr(
+        "mydevelon.CLIENT_SECRET", "dummy-secret", raising=False
+    )
+
+    try:
+        mydevelon.get_access_token()
+        rejected = False
+    except RuntimeError as error:
+        rejected = "en lugar de token" in str(error)
+
+    assert rejected is True
+
+
+def test_live_empty_fleet_does_not_record_fetch(tmp_path):
+    state = str(tmp_path / "last_fetch.txt")
+    now = datetime(2026, 9, 22, 12, 0, tzinfo=timezone.utc)
+
+    def fetcher():
+        return "   "
+
+    try:
+        resolve_fleet_xml_text(
+            mode="live",
+            fleet_xml_path="unused.xml",
+            state_path=state,
+            fetcher=fetcher,
+            now=now,
+        )
+        raised = False
+    except FleetEmptyError:
+        raised = True
+
+    assert raised is True
+    assert is_fetch_allowed(state, now=now) is True

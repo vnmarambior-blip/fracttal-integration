@@ -77,6 +77,12 @@ def get_access_token():
             "al solicitar el token."
         )
 
+    if token.startswith("{"):
+        raise RuntimeError(
+            "MyDevelon devolvió un error en lugar de token: "
+            f"{token[:120]}"
+        )
+
     return token
 
 
@@ -337,6 +343,13 @@ def resolve_fleet_xml_text(
         )
 
     xml_text = fetcher()
+
+    if not xml_text or not xml_text.strip():
+        raise FleetEmptyError(
+            "Fleet live vacía; no se registra fetch "
+            "para no consumir cuota en vano."
+        )
+
     record_fetch(state_path, now=now)
 
     if record_path is not None:
