@@ -14,19 +14,12 @@ from datetime import datetime, timezone
 
 import api
 import komtrax
+from oem_common import env_flag
 from _compare_hours import (
     KOMTRAX_MACHINES,
     get_fracttal_hourmeter,
     get_fracttal_items,
 )
-
-
-def env_flag(name, default=False):
-    """Convierte una variable de entorno booleana de manera predecible."""
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_args(argv=None):

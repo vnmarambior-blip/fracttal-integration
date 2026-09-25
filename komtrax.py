@@ -21,8 +21,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import requests
-from mydevelon import parse_fleet_xml, FleetEmptyError
-from mydevelon import get_cached_token, is_fetch_allowed, record_fetch
+from oem_common import (
+    FleetEmptyError,
+    get_cached_token,
+    is_fetch_allowed,
+    parse_fleet_xml,
+    record_fetch,
+)
 
 
 class KomtraxFleetError(RuntimeError):

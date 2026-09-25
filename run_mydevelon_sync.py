@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from api import get_access_token as get_fracttal_access_token
 from api import process_equipment
 from database import save_horometer_update
+from oem_common import env_flag
 from mydevelon import FleetEmptyError, QuotaExceededError
 from mydevelon import get_access_token as get_mydevelon_access_token
 from mydevelon import (
@@ -35,14 +36,6 @@ DEFAULT_STATE_FILE = ".mydevelon_last_fetch.txt"
 DEFAULT_TOKEN_CACHE = ".mydevelon_token.txt"
 DEFAULT_MIN_INTERVAL_SECONDS = 900
 DEFAULT_TOKEN_TTL_SECONDS = 1800
-
-
-def env_flag(name, default=False):
-    """Convierte una variable de entorno booleana de manera predecible."""
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_reading_datetime(value):
