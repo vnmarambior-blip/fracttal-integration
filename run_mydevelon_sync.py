@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from api import get_access_token as get_fracttal_access_token
 from api import process_equipment
 from database import save_horometer_update
-from mydevelon import QuotaExceededError
+from mydevelon import FleetEmptyError, QuotaExceededError
 from mydevelon import get_access_token as get_mydevelon_access_token
 from mydevelon import get_cached_token, get_fleet_xml, parse_fleet_xml
 from mydevelon import resolve_fleet_xml_text
@@ -162,11 +162,23 @@ def _main(args, dry_run):
                 record_path=args.record,
                 min_interval_seconds=args.min_interval_seconds,
             )
+            if not fleet_xml or not fleet_xml.strip():
+                raise FleetEmptyError("Fleet live vacía (HTTP 200, 0 bytes).")
         except QuotaExceededError as error:
             print(f"[CUOTA] {error}")
             raise RuntimeError(
                 "Fetch MyDevelon bloqueado por cuota mínima."
             ) from error
+        except FleetEmptyError as error:
+            print(f"[AVISO] {error} Cayendo a fixture: {args.fleet_xml}")
+            fleet_xml = resolve_fleet_xml_text(
+                mode="file",
+                fleet_xml_path=args.fleet_xml,
+                state_path=os.getenv(
+                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
+                ),
+                fetcher=lambda: fetch_fleet(""),
+            )
     else:
         fleet_xml = resolve_fleet_xml_text(
             mode="file",
