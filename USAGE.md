@@ -36,8 +36,16 @@ SYNC_DRY_RUN=false
 
 ## 2. Comandos de Ejecución
 
-**No hay un solo comando "todo en uno".** Dos flujos independientes:
+### Comando único (recomendado)
+```bash
+# Dry-run (MyDevelon fixture + Komtrax requiere --live o fixture)
+python run_all_sync.py
 
+# Producción completa (ambos en vivo)
+python run_all_sync.py --live [--report ejecucion_YYYYMMDD.md]
+```
+
+### Comandos individuales (alternativa)
 ```bash
 # A) MyDevelon → Fracttal (cuota 15 min)
 python run_mydevelon_sync.py --live [--report ejecucion_YYYYMMDD.md]
@@ -46,7 +54,7 @@ python run_mydevelon_sync.py --live [--report ejecucion_YYYYMMDD.md]
 python run_komtrax_sync.py --live [--report komtrax_YYYYMMDD.md]
 ```
 
-> Ejecuta **primero MyDevelon**, espera a que termine, luego **Komtrax**.
+> El comando único `run_all_sync.py` ejecuta **MyDevelon primero**, espera a que termine, luego **Komtrax**. Respeta `SYNC_DRY_RUN` del entorno.
 
 ### Modo Dry-Run (seguro, por defecto)
 ```bash
