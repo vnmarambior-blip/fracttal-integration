@@ -255,6 +255,8 @@ El proyecto se considera estabilizado cuando:
 * Komtrax: normalización de espacios en códigos (`CF 01` → `CF01`) funcionando.
 * Komtrax: serial `19144` (`unit_name=vacio`) resuelto contra `CF05` en Fracttal.
 * Komtrax y MyDevelon son flujos independientes sin mezcla de fuentes.
+* Fixture MyDevelon 15/09/2026 (`fixtures/mydevelon_fleet_minutes.xml`) como fuente de referencia para tests y validaciones — el Fleet live MyDevelon puede devolver 200/0 bytes transitorio.
+* CF05 alta manual en consola Fracttal es requisito previo a Komtrax 13/13 productivo (serial `19144` → `CF05` ya resuelto por `field_4`).
 
 ## Orden de ejecución
 
