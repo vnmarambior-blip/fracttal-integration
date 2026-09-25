@@ -2,22 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "🚀 Run All Sync (Dry-Run)",
+            "label": "🚀 Run All Sync (PRODUCCIÓN - Default)",
             "type": "shell",
             "command": ".\\.venv\\Scripts\\python.exe",
             "args": ["run_all_sync.py"],
-            "group": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "problemMatcher": [],
-            "detail": "Ejecuta MyDevelon (fixture) + Komtrax (requiere --live o fixture)"
-        },
-        {
-            "label": "🚀 Run All Sync PRODUCCIÓN (--live)",
-            "type": "shell",
-            "command": ".\\.venv\\Scripts\\python.exe",
-            "args": ["run_all_sync.py", "--live"],
-            "group": "build",
-            "problemMatcher": [],
-            "detail": "Ejecuta MyDevelon + Komtrax EN VIVO -> Fracttal (SYNC_DRY_RUN=false requerido en .env)"
+            "detail": "Ejecuta MyDevelon + Komtrax EN VIVO -> Fracttal (PRODUCCIÓN por defecto)"
         },
         {
             "label": "🚀 Run All Sync PRODUCCIÓN + Reporte",
@@ -25,7 +19,6 @@
             "command": ".\\.venv\\Scripts\\python.exe",
             "args": [
                 "run_all_sync.py",
-                "--live",
                 "--report",
                 "ejecucion_${input:date}.md"
             ],
@@ -34,7 +27,16 @@
             "detail": "Ejecución completa en vivo con reporte markdown"
         },
         {
-            "label": "🔧 MyDevelon Only (--live)",
+            "label": "🧪 Run All Sync (DRY-RUN)",
+            "type": "shell",
+            "command": ".\\.venv\\Scripts\\python.exe",
+            "args": ["run_all_sync.py", "--dry-run"],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Simulación: MyDevelon fixture + Komtrax fixture"
+        },
+        {
+            "label": "🔧 MyDevelon Only (PRODUCCIÓN)",
             "type": "shell",
             "command": ".\\.venv\\Scripts\\python.exe",
             "args": ["run_mydevelon_sync.py", "--live"],
@@ -42,7 +44,7 @@
             "problemMatcher": []
         },
         {
-            "label": "🔧 Komtrax Only (--live)",
+            "label": "🔧 Komtrax Only (PRODUCCIÓN)",
             "type": "shell",
             "command": ".\\.venv\\Scripts\\python.exe",
             "args": ["run_komtrax_sync.py", "--live"],
@@ -73,5 +75,5 @@
             "description": "Fecha para el reporte (YYYYMMDD)",
             "default": "20260925"
         }
-    }
+    ]
 }

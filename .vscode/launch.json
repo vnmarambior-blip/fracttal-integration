@@ -2,22 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "🚀 Run All Sync (Dry-Run)",
+            "name": "🚀 Run All Sync (PRODUCCIÓN - Default)",
             "type": "python",
             "request": "launch",
             "module": "run_all_sync",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "🚀 Run All Sync (PRODUCCIÓN --live)",
-            "type": "python",
-            "request": "launch",
-            "module": "run_all_sync",
-            "args": ["--live"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
@@ -26,11 +14,11 @@
             }
         },
         {
-            "name": "🚀 Run All Sync (PRODUCCIÓN --live + reporte)",
+            "name": "🚀 Run All Sync (PRODUCCIÓN + Reporte)",
             "type": "python",
             "request": "launch",
             "module": "run_all_sync",
-            "args": ["--live", "--report", "ejecucion_${input:date}.md"],
+            "args": ["--report", "ejecucion_${input:date}.md"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
@@ -39,7 +27,20 @@
             }
         },
         {
-            "name": "🔧 Run MyDevelon Only (--live)",
+            "name": "🧪 Run All Sync (DRY-RUN)",
+            "type": "python",
+            "request": "launch",
+            "module": "run_all_sync",
+            "args": ["--dry-run"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "SYNC_DRY_RUN": "true"
+            }
+        },
+        {
+            "name": "🔧 Run MyDevelon Only (PRODUCCIÓN)",
             "type": "python",
             "request": "launch",
             "module": "run_mydevelon_sync",
@@ -52,7 +53,7 @@
             }
         },
         {
-            "name": "🔧 Run Komtrax Only (--live)",
+            "name": "🔧 Run Komtrax Only (PRODUCCIÓN)",
             "type": "python",
             "request": "launch",
             "module": "run_komtrax_sync",

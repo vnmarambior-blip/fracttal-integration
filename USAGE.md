@@ -36,13 +36,16 @@ SYNC_DRY_RUN=false
 
 ## 2. Comandos de Ejecución
 
-### Comando único (recomendado)
+### Comando único (recomendado) — **PRODUCCIÓN por defecto**
 ```bash
-# Dry-run (MyDevelon fixture + Komtrax requiere --live o fixture)
+# PRODUCCIÓN (--live, SYNC_DRY_RUN=false) — DEFAULT
 python run_all_sync.py
 
-# Producción completa (ambos en vivo)
-python run_all_sync.py --live [--report ejecucion_YYYYMMDD.md]
+# PRODUCCIÓN con reporte
+python run_all_sync.py --report ejecucion_YYYYMMDD.md
+
+# Simulación (dry-run) — solo si se pasa explícito
+python run_all_sync.py --dry-run
 ```
 
 ### Comandos individuales (alternativa)
@@ -54,7 +57,8 @@ python run_mydevelon_sync.py --live [--report ejecucion_YYYYMMDD.md]
 python run_komtrax_sync.py --live [--report komtrax_YYYYMMDD.md]
 ```
 
-> El comando único `run_all_sync.py` ejecuta **MyDevelon primero**, espera a que termine, luego **Komtrax**. Respeta `SYNC_DRY_RUN` del entorno.
+> El comando único `run_all_sync.py` ejecuta **MyDevelon primero**, espera a que termine, luego **Komtrax**.
+> **Por defecto es PRODUCCIÓN** (`--live`, `SYNC_DRY_RUN=false`). Solo usa `--dry-run` para simular.
 
 ### Modo Dry-Run (seguro, por defecto)
 ```bash

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Ejecuta MyDevelon + Komtrax -> Fracttal en un solo comando.
+"""Ejecuta MyDevelon + Komtrax -> Fracttal en un solo comando (PRODUCCIÓN por defecto).
 
 Orden: MyDevelon primero (cuota 15 min), luego Komtrax (cuota 5 min/URL).
-Respeta SYNC_DRY_RUN del entorno.
+Por defecto: PRODUCCIÓN (--live, SYNC_DRY_RUN=false).
+Usa --dry-run para simulación.
 
 Uso:
-  python run_all_sync.py                 # dry-run MyDevelon (fixture) + Komtrax (requiere --live o --fleet-xml)
-  python run_all_sync.py --live          # ambos en vivo
-  python run_all_sync.py --live --report ejecucion.md  # con reporte
+  python run_all_sync.py                 # PRODUCCIÓN: MyDevelon live + Komtrax live
+  python run_all_sync.py --dry-run       # Simulación: MyDevelon fixture + Komtrax fixture
+  python run_all_sync.py --report ejecucion.md  # con reporte
 """
 
 import sys
@@ -40,41 +41,47 @@ def run_sync(script_name, args, description, env=None):
 
 
 def main():
-    # Argumentos pasados al script (--live, --report, etc.)
+    # Argumentos pasados al script
     extra_args = sys.argv[1:]
 
-    print("INICIANDO SINCRONIZACION COMPLETA MyDevelon + Komtrax")
-    print("Argumentos: " + (str(extra_args) if extra_args else "(default dry-run)"))
+    # POR DEFECTO: PRODUCCIÓN (--live). Solo dry-run si se pasa --dry-run explícito
+    is_dry_run = "--dry-run" in extra_args
+    if is_dry_run:
+        extra_args = [a for a in extra_args if a != "--dry-run"]
+    else:
+        # Forzar --live si no está explícito
+        if "--live" not in extra_args:
+            extra_args = ["--live"] + extra_args
 
-    # 1. MyDevelon primero (usa fixture por defecto si no hay --live)
+    # Entorno: producción por defecto
+    env = os.environ.copy()
+    if is_dry_run:
+        env["SYNC_DRY_RUN"] = "true"
+    else:
+        env["SYNC_DRY_RUN"] = "false"
+
+    print("INICIANDO SINCRONIZACION COMPLETA MyDevelon + Komtrax")
+    print("Modo: " + ("DRY-RUN (simulacion)" if is_dry_run else "PRODUCCION (--live, SYNC_DRY_RUN=false)"))
+    print("Argumentos: " + str(extra_args))
+
+    # 1. MyDevelon primero
     ok_md, _ = run_sync(
         "run_mydevelon_sync.py",
         extra_args,
-        "MyDevelon -> Fracttal"
+        "MyDevelon -> Fracttal",
+        env=env
     )
 
     if not ok_md:
         print("\nMyDevelon fallo. Abortando Komtrax.")
         sys.exit(1)
 
-    # 2. Komtrax segundo (requiere --live o --fleet-xml; en dry-run usa fixture por defecto)
-    # Si no hay --live ni --fleet-xml, pasar la fixture por defecto para Komtrax
-    komtrax_args = list(extra_args)
-    if "--live" not in komtrax_args and "--fleet-xml" not in komtrax_args:
-        # Usar la fixture por defecto si existe
-        if os.path.exists("fixtures/komtrax_fleet.xml"):
-            komtrax_args.extend(["--fleet-xml", "fixtures/komtrax_fleet.xml"])
-        else:
-            print("\n[AVISO] Komtrax dry-run requiere --live o --fleet-xml. Saltando Komtrax.")
-            print("Usa: python run_all_sync.py --live  (para ambos en vivo)")
-            print("   o: python run_all_sync.py --fleet-xml fixtures/komtrax_fleet.xml")
-            print("\nSolo MyDevelon completado.")
-            sys.exit(0)
-
+    # 2. Komtrax segundo
     ok_kt, _ = run_sync(
         "run_komtrax_sync.py",
-        komtrax_args,
-        "Komtrax -> Fracttal"
+        extra_args,
+        "Komtrax -> Fracttal",
+        env=env
     )
 
     if not ok_kt:
