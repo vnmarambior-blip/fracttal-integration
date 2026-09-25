@@ -165,10 +165,15 @@ def _main(args, dry_run):
             if not fleet_xml or not fleet_xml.strip():
                 raise FleetEmptyError("Fleet live vacía (HTTP 200, 0 bytes).")
         except QuotaExceededError as error:
-            print(f"[CUOTA] {error}")
-            raise RuntimeError(
-                "Fetch MyDevelon bloqueado por cuota mínima."
-            ) from error
+            print(f"[CUOTA] {error} Cayendo a fixture: {args.fleet_xml}")
+            fleet_xml = resolve_fleet_xml_text(
+                mode="file",
+                fleet_xml_path=args.fleet_xml,
+                state_path=os.getenv(
+                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
+                ),
+                fetcher=lambda: fetch_fleet(""),
+            )
         except FleetEmptyError as error:
             print(f"[AVISO] {error} Cayendo a fixture: {args.fleet_xml}")
             fleet_xml = resolve_fleet_xml_text(

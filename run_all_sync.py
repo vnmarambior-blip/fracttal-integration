@@ -72,11 +72,7 @@ def main():
         env=env
     )
 
-    if not ok_md:
-        print("\nMyDevelon fallo. Abortando Komtrax.")
-        sys.exit(1)
-
-    # 2. Komtrax segundo
+    # 2. Komtrax segundo (siempre, aunque MyDevelon falle)
     ok_kt, _ = run_sync(
         "run_komtrax_sync.py",
         extra_args,
@@ -84,14 +80,19 @@ def main():
         env=env
     )
 
-    if not ok_kt:
-        print("\nKomtrax fallo.")
-        sys.exit(1)
-
     print("\n" + "=" * 60)
-    print("SINCRONIZACION COMPLETA FINALIZADA")
+    if ok_md and ok_kt:
+        print("SINCRONIZACION COMPLETA FINALIZADA")
+        print("=" * 60)
+        return 0
+    if not ok_md and not ok_kt:
+        print("SINCRONIZACION COMPLETA FALLIDA (ambas fuentes)")
+        print("=" * 60)
+        return 1
+    print("SINCRONIZACION PARCIAL (una fuente fallo)")
     print("=" * 60)
+    return 3
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

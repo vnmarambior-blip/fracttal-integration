@@ -270,6 +270,60 @@ class LiveEmptyFallbackTests(unittest.TestCase):
         self.assertEqual(len(process_calls), 1)
         self.assertEqual(process_calls[0]["serial"], SERIAL)
 
+    def test_live_quota_falls_back_to_fixture(self):
+        import mydevelon
+
+        calls = []
+        process_calls = []
+
+        def fake_resolve(**kwargs):
+            calls.append(kwargs.get("mode"))
+            if kwargs.get("mode") == "live":
+                raise mydevelon.QuotaExceededError("cuota")
+            return "<fleet/>"
+
+        patches = [
+            patch.object(
+                run_mydevelon_sync, "get_cached_token",
+                return_value="t",
+            ),
+            patch.object(
+                run_mydevelon_sync, "resolve_fleet_xml_text",
+                side_effect=fake_resolve,
+            ),
+            patch.object(
+                run_mydevelon_sync, "parse_fleet_xml",
+                return_value=[{
+                    "pin": SERIAL, "oem_name": "DEVELON",
+                    "operating_hours": 10.0,
+                    "operating_hours_datetime": READING_DATETIME,
+                }],
+            ),
+            patch.object(
+                run_mydevelon_sync, "get_mydevelon_access_token",
+                return_value="t",
+            ),
+            patch.object(
+                run_mydevelon_sync, "get_fracttal_access_token",
+                return_value="t",
+            ),
+            patch.object(
+                run_mydevelon_sync, "process_equipment",
+                side_effect=lambda **kw: process_calls.append(kw)
+                or {"status": "REVIEW", "serial": kw["serial"]},
+            ),
+        ]
+        for item in patches:
+            item.start()
+        try:
+            run_mydevelon_sync.main(["--live"])
+        finally:
+            for item in reversed(patches):
+                item.stop()
+
+        self.assertEqual(calls, ["live", "file"])
+        self.assertEqual(len(process_calls), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
