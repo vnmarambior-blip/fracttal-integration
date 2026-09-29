@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<Fleet xmlns="http://www.jcmanet.or.jp/english2017/ISO/15143/-3/20190501" snapshotTime="2026-09-24T00:00:00Z">
+<Links><rel>self</rel><href>https://isoapi.komtrax.komatsu/provider/v1/385177/Fleet/1</href></Links>
+<Links><rel>last</rel><href>https://isoapi.komtrax.komatsu/provider/v1/385177/Fleet/1</href></Links>
+<Equipment><EquipmentHeader>
+<OEMName>KOMATSU</OEMName><Model>GD675-5</Model>
+<EquipmentID>MN04</EquipmentID><SerialNumber>55267</SerialNumber>
+<PIN>DHKCEBADLG0007790</PIN></EquipmentHeader>
+<Location datetime="2026-09-24T05:00:00Z"><Latitude>-33.4</Latitude><Longitude>-70.7</Longitude></Location>
+<CumulativeIdleHours datetime="2026-08-11T05:00:00Z"><Hour>0</Hour></CumulativeIdleHours>
+<CumulativeOperatingHours datetime="2026-08-11T05:00:00Z"><Hour>10599.8</Hour></CumulativeOperatingHours>
+<EngineStatus datetime="2026-08-11T05:00:00Z"><EngineNumber></EngineNumber><Running>false</Running></EngineStatus>
+<FuelUsed datetime="2026-08-11T05:00:00Z"><FuelUnits>litre</FuelUnits><FuelConsumed>0</FuelConsumed></FuelUsed>
+<FuelRemaining datetime="2026-08-11T05:00:00Z"><Percent>50.000</Percent></FuelRemaining>
+</Equipment>
+</Fleet>

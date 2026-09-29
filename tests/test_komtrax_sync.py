@@ -92,14 +92,16 @@ def test_dry_run_sends_only_update_to_pipeline(monkeypatch, tmp_path):
     assert calls[0]["dry_run"] is True
 
 
-def test_production_mode_aborts_before_anything(monkeypatch, tmp_path):
+def test_production_mode_requires_live_flag(monkeypatch, tmp_path):
+    # Set up mocks BEFORE importing the module
+    monkeypatch.setattr(requests, "get", _block)
+    monkeypatch.setattr(requests, "post", _block)
+    monkeypatch.setenv("SYNC_DRY_RUN", "false")
+
     import run_komtrax_sync
 
     fleet_file = tmp_path / "fleet.xml"
     fleet_file.write_text("<Fleet />", encoding="utf-8")
-    monkeypatch.setenv("SYNC_DRY_RUN", "false")
-    monkeypatch.setattr(requests, "get", _block)
-    monkeypatch.setattr(requests, "post", _block)
 
     with pytest.raises(SystemExit) as exc:
         run_komtrax_sync.main(["--fleet-xml", str(fleet_file)])
@@ -193,3 +195,7 @@ def test_apply_meter_reading_threads_source_to_telemetry_config(monkeypatch):
     assert seen == ["KOMTRAX", "MYDEVELON"]
 
     assert len(saved) == 0
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

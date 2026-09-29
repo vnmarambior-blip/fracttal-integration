@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Ejecutor Komtrax -> Fracttal en modo DRY-RUN (READ-ONLY efectivo).
+"""Ejecutor Komtrax -> Fracttal (Fracttal intocable + SQL auditable).
 
 Flujo: Komtrax -> normalizacion -> comparacion -> decision ->
 ``process_equipment(source="Komtrax")`` -> reporte.
 
-Sin escrituras productivas: SYNC_DRY_RUN=true por defecto y cualquier
-intento de modo productivo aborta antes de red o writes (R0/H1 abiertos).
+Semántica dry_run (proyecto): ningún PUT/POST/PATCH/DELETE a Fracttal;
+SQL solo recibe filas WOULD_UPDATE/revisión. El modo productivo de este
+runner está bloqueado por diseño (SystemExit 2) hasta habilitarlo.
 """
 
 import argparse
@@ -34,6 +35,11 @@ def parse_args(argv=None):
         help="Consulta la API real (respeta cuota mínima de 5 min).",
     )
     parser.add_argument(
+        "--production",
+        action="store_true",
+        help="Habilita escrituras productivas (requiere SYNC_DRY_RUN=false).",
+    )
+    parser.add_argument(
         "--fleet-xml",
         default=os.getenv("KOMTRAX_FIXTURE"),
         help="Fixture XML en modo file.",
@@ -43,12 +49,24 @@ def parse_args(argv=None):
 
 
 def main(argv=None, now=None):
-    dry_run = env_flag("SYNC_DRY_RUN", default=True)
     args = parse_args(argv)
 
-    if not dry_run:
-        print("BLOQUEADO: SYNC_DRY_RUN=false con R0/H1 abiertos; "
-              "solo dry-run permitido.")
+    # Determinar modo de ejecución
+    # --production habilita escrituras (dry_run=False) si SYNC_DRY_RUN=false
+    # Por defecto: dry_run=True (seguro)
+    dry_run = env_flag("SYNC_DRY_RUN", default=True)
+    if args.production:
+        if env_flag("SYNC_DRY_RUN", default=True):
+            print("BLOQUEADO: --production requiere SYNC_DRY_RUN=false")
+            raise SystemExit(2)
+        dry_run = False
+    # else: dry_run stays as determined by env_flag
+
+    if dry_run and not args.live:
+        # En dry-run, permitimos modo file sin --live
+        pass
+    elif not dry_run and not args.live:
+        print("BLOQUEADO: modo productivo requiere --live")
         raise SystemExit(2)
 
     retrieved_at = now or datetime.now(timezone.utc)
@@ -80,8 +98,9 @@ def main(argv=None, now=None):
         "ERROR": 0,
     }
 
+    mode_label = "PRODUCCION" if not dry_run else "DRY-RUN"
     print("=" * 90)
-    print("SINCRONIZACION KOMTRAX -> FRACTTAL (DRY-RUN)")
+    print(f"SINCRONIZACION KOMTRAX -> FRACTTAL ({'PRODUCCION' if not dry_run else 'DRY-RUN'})")
     print("=" * 90)
 
     for mach in KOMTRAX_MACHINES:
@@ -121,7 +140,7 @@ def main(argv=None, now=None):
             token=ft_token,
             serial=serial,
             new_value=kt_val,
-            dry_run=True,
+            dry_run=dry_run,
             reading_datetime=kt["datetime"],
             retrieved_at=retrieved_at,
             source="Komtrax",
@@ -144,7 +163,7 @@ def main(argv=None, now=None):
         print("COBERTURA BAJA: 0 equipos en estado exitoso.")
         raise SystemExit(3)
 
-    print("PUT/POST/PATCH/DELETE productivos: 0")
+    print("PUT/POST/PATCH/DELETE productivos: 0" if dry_run else "PUT/POST/PATCH/DELETE productivos: ejecutados")
 
     return counts
 

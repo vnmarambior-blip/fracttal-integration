@@ -1059,6 +1059,12 @@ def apply_meter_reading(
 
         if existing_status == "ERROR_RETRYABLE":
             event_id = existing_event.get("id")
+        elif existing_status == "WOULD_UPDATE":
+            # Fila de simulación dry-run: ningún PUT fue ejecutado.
+            # Se adopta el event_id y el flujo continúa normal
+            # (mark → PUT → verify → update), preservando
+            # el invariante una-fila-por-key.
+            event_id = existing_event.get("id")
         else:
             raise ValueError(
                 "REEXECUTION_BLOCKED: ya existe un intento para "

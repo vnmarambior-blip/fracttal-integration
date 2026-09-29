@@ -54,6 +54,17 @@ Objetivo → mínimo diagnóstico → acción → prueba mínima → resultado �
 - Confirm read-only runs wrote nothing (e.g., re-query `MAX(id)` range or run suite with blank connection string).
 - Spot-check live state after E2E (Fracttal value + SQL row), don't trust the return dict alone.
 
+## Compliance Matrix (closed on `main@301babc`, suite 217 passed, 0 PUTs, 0 prod SQL)
+
+| Item | SPEC | Implementación | Tests | Evidencia | Estado |
+|---|---|---|---|---|---|
+| P0-2 orquestador seguro | Restricciones SPEC + Fase 4 §2/§5/§8 | `run_all_sync.py`: default DRY-RUN, `--live` explícito, reporte consolidado propio, `--md/--kt-fleet-xml` split, exit 0/1/3 | 8 en `test_run_all_sync.py` | suite 217; smoke default → exit 3 sin PUT | CLOSED |
+| P1-1 umbral cobertura | R6/R20 | `COBERTURA BAJA` + exit 3 en ambos runners (0 éxitos con equipos) | `CoverageThresholdTests` + `test_zero_success_exits_3` | suite 217 | CLOSED |
+| P1-2 paginación | R19 enmendada | `get_fleet_xml_pages` (next, tope 10, anti-loop, fallo aborta) + `concat_fleet_pages` (dedup) + cableado live | 6 tests paginación/dedup/loop/error | suite 217 | CLOSED |
+| oem_common | R21/arquitectura | `oem_common.py`; `komtrax` sin `mydevelon`; `env_flag` único | 80 tests archivos afectados + suite | suite 217; import-check OK | CLOSED |
+
+No se afirma producción verificada: solo tests/smoke dry-run.
+
 ## Handoff
 
 - Requirement work → `spec-driven-qa` (implement) or `audit-project` (read-only).

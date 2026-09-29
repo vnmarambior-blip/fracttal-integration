@@ -218,6 +218,25 @@ class P11IdempotencyTests(unittest.TestCase):
             self.call_apply(value=7595.0)
         self.assertEqual(len(self.put_calls), 0)
 
+    def test_would_update_prior_row_is_adopted_and_puts_once(self):
+        key = api.build_idempotency_key(
+            "MYDEVELON", EQUIPMENT["field_4"], METER["id"],
+            READING_DATETIME, 7915.7
+        )
+        self.events[key] = {
+            "id": 8,
+            "write_status": "WOULD_UPDATE",
+            "status": "WOULD_UPDATE"
+        }
+        result = self.call_apply()
+        self.assertEqual(result["status"], "VERIFIED")
+        self.assertEqual(result["event_id"], 8)
+        self.assertEqual(len(self.put_calls), 1)
+        self.assertEqual(len(self.events), 1)
+        self.assertEqual(
+            self.events[key]["write_status"], "VERIFIED"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
