@@ -9,6 +9,11 @@ import pytest
 import run_all_sync
 
 
+@pytest.fixture(autouse=True)
+def _log_dir_tmp(monkeypatch, tmp_path):
+    monkeypatch.setenv("SYNC_LOG_DIR", str(tmp_path / "registros"))
+
+
 def _result(returncode=0, stdout="out"):
     proc = subprocess.CompletedProcess(args=[], returncode=returncode)
     proc.stdout = stdout

@@ -159,6 +159,31 @@ def write_consolidated_report(path, md_output, kt_output,
     print(f"\nReporte consolidado: {path}")
 
 
+class _TeeFile:
+    """Duplica stdout a consola y archivo de registro."""
+
+    def __init__(self, console, handle):
+        self.console = console
+        self.handle = handle
+
+    def write(self, text):
+        self.console.write(text)
+        self.handle.write(text)
+
+    def flush(self):
+        self.console.flush()
+        self.handle.flush()
+
+
+def log_path_for_now(now=None):
+    """Ruta del registro txt de esta ejecución."""
+    moment = now or datetime.now(timezone.utc)
+    stamp = moment.strftime("%Y%m%d_%H%M%S")
+    log_dir = os.getenv("SYNC_LOG_DIR", "registros")
+    os.makedirs(log_dir, exist_ok=True)
+    return os.path.join(log_dir, f"sync_{stamp}.txt")
+
+
 def main(argv=None):
     parsed = split_orchestrator_args(list(argv) if argv is not None else sys.argv[1:])
 
@@ -174,6 +199,18 @@ def main(argv=None):
     print("MyDevelon args: " + str(parsed["md_args"]))
     print("Komtrax args: " + str(parsed["kt_args"]))
 
+    log_path = log_path_for_now()
+    print("Registro: " + log_path)
+    old_stdout = sys.stdout
+    sys.stdout = _TeeFile(old_stdout, open(log_path, "w", encoding="utf-8"))
+    try:
+        return _main_sync(parsed, env, mode)
+    finally:
+        sys.stdout.handle.close()
+        sys.stdout = old_stdout
+
+
+def _main_sync(parsed, env, mode):
     # 1. MyDevelon primero
     ok_md, md_output = run_sync(
         "run_mydevelon_sync.py",

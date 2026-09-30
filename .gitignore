@@ -18,6 +18,7 @@ api_backup.py
 
 # Run outputs: dated logs, reports and dry-run dumps stay local.
 *.log
+registros/
 fleet_readonly_*.json
 fleet_readonly_*.md
 reconcile_dryrun_*.json
