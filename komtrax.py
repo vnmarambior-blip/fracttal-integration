@@ -193,28 +193,12 @@ def classify_komtrax_gap(kt):
         return "PARSE_ERROR"
     return "NO_HOURS"
 
-def _coerce_dt(value):
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        parsed = value
-    else:
-        try:
-            parsed = datetime.fromisoformat(str(value).strip())
-        except (ValueError, TypeError):
-            return None
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
-
 def decide_comparison(kt_val, ft_val, kt_dt=None, ft_dt=None):
     delta = round(kt_val - ft_val, 2)
     if abs(delta) < 0.01:
         return "SKIP_EQUAL"
     if delta < 0:
         return "REVIEW_OLD_SOURCE"
-    kt_parsed = _coerce_dt(kt_dt)
-    ft_parsed = _coerce_dt(ft_dt)
-    if kt_parsed is not None and ft_parsed is not None and kt_parsed <= ft_parsed:
-        return "REVIEW_OLD_SOURCE"
+    # Sin bloqueo por fecha antigua: solo el orden de valores decide;
+    # las fechas se conservan como evidencia pero no bloquean.
     return "UPDATE"

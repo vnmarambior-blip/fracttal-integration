@@ -35,9 +35,9 @@ def parse_args(argv=None):
         help="Consulta la API real (respeta cuota mínima de 5 min).",
     )
     parser.add_argument(
-        "--production",
+        "--dry-run",
         action="store_true",
-        help="Habilita escrituras productivas (requiere SYNC_DRY_RUN=false).",
+        help="Fuerza simulación aunque SYNC_DRY_RUN=false (cero PUTs).",
     )
     parser.add_argument(
         "--fleet-xml",
@@ -51,23 +51,16 @@ def parse_args(argv=None):
 def main(argv=None, now=None):
     args = parse_args(argv)
 
-    # Determinar modo de ejecución
-    # --production habilita escrituras (dry_run=False) si SYNC_DRY_RUN=false
-    # Por defecto: dry_run=True (seguro)
-    dry_run = env_flag("SYNC_DRY_RUN", default=True)
-    if args.production:
-        if env_flag("SYNC_DRY_RUN", default=True):
-            print("BLOQUEADO: --production requiere SYNC_DRY_RUN=false")
-            raise SystemExit(2)
-        dry_run = False
-    # else: dry_run stays as determined by env_flag
-
-    if dry_run and not args.live:
-        # En dry-run, permitimos modo file sin --live
-        pass
-    elif not dry_run and not args.live:
-        print("BLOQUEADO: modo productivo requiere --live")
-        raise SystemExit(2)
+    # Contrato CLI:
+    #   sin --live            -> DRY-RUN (fixtures, cero PUTs), ignore env.
+    #   --dry-run             -> DRY-RUN explícito, ignore env.
+    #   --live + env true     -> DRY-RUN contra API live (lectura real, cero PUTs).
+    #   --live + env false    -> PRODUCCIÓN.
+    # Sin flag --production: --live es la única vía a producción.
+    if args.dry_run or not args.live:
+        dry_run = True
+    else:
+        dry_run = env_flag("SYNC_DRY_RUN", default=True)
 
     retrieved_at = now or datetime.now(timezone.utc)
     if isinstance(retrieved_at, str):
@@ -80,12 +73,21 @@ def main(argv=None, now=None):
         if not args.fleet_xml:
             print("BLOQUEADO: se requiere --live o --fleet-xml.")
             raise SystemExit(2)
-        with open(args.fleet_xml, encoding="utf-8") as handle:
-            kt_pages = [handle.read()]
+        try:
+            with open(args.fleet_xml, encoding="utf-8") as handle:
+                fleet_text = handle.read()
+        except OSError as error:
+            print(f"ERROR: fixture inválido/inexistente: {args.fleet_xml} ({error})")
+            raise SystemExit(2)
+        kt_pages = [fleet_text]
 
-    kt_data = {}
-    for kt_xml in kt_pages:
-        kt_data.update(komtrax.parse_komtrax_hours(kt_xml))
+    try:
+        kt_data = {}
+        for kt_xml in kt_pages:
+            kt_data.update(komtrax.parse_komtrax_hours(kt_xml))
+    except Exception as error:
+        print(f"ERROR: fixture inválido/inexistente: {args.fleet_xml or '--live'} ({error})")
+        raise SystemExit(2)
 
     ft_token = api.get_access_token()
     ft_items = get_fracttal_items(ft_token)
@@ -96,6 +98,8 @@ def main(argv=None, now=None):
         "REVIEW_OLD_SOURCE": 0,
         "REVIEW_INCONSISTENCY": 0,
         "ERROR": 0,
+        "VERIFIED": 0,
+        "WRITE_AMBIGUOUS": 0,
     }
 
     mode_label = "PRODUCCION" if not dry_run else "DRY-RUN"
@@ -106,17 +110,33 @@ def main(argv=None, now=None):
     for mach in KOMTRAX_MACHINES:
         serial = mach["serial"]
         unit = mach["unit"]
+        model = mach.get("model")
+        status = None
 
         kt = kt_data.get(serial)
         gap = komtrax.classify_komtrax_gap(kt)
         if gap != "OK":
-            print(f"{serial:<8} {'N/A':<12} REVIEW_INCONSISTENCY: Komtrax {gap}")
+            print()
+            print("=" * 60)
+            print(f"PROCESANDO SERIAL: {serial}")
+            print("=" * 60)
+            print(f"     Código: {unit}")
+            print(f"     Modelo: {model}")
+            print(f"Komtrax {gap}: sin lectura válida; no se procesa.")
+            print(f"[RESULTADO] {serial}: REVIEW_INCONSISTENCY")
             counts["REVIEW_INCONSISTENCY"] += 1
             continue
 
         ft_result = get_fracttal_hourmeter(ft_token, unit, ft_items)
         if "error" in ft_result:
-            print(f"{serial:<8} {'N/A':<12} ERROR: {ft_result['error'][:50]}")
+            print()
+            print("=" * 60)
+            print(f"PROCESANDO SERIAL: {serial}")
+            print("=" * 60)
+            print(f"     Código: {unit}")
+            print(f"     Modelo: {model}")
+            print(f"ERROR: {ft_result['error'][:50]}")
+            print(f"[RESULTADO] {serial}: ERROR")
             counts["ERROR"] += 1
             continue
 
@@ -124,7 +144,14 @@ def main(argv=None, now=None):
             kt_val = round(float(kt["hours"]), 2)
             ft_val = round(float(ft_result["value"]), 2)
         except (ValueError, TypeError):
-            print(f"{serial:<8} {'N/A':<12} ERROR: No numerico")
+            print()
+            print("=" * 60)
+            print(f"PROCESANDO SERIAL: {serial}")
+            print("=" * 60)
+            print(f"     Código: {unit}")
+            print(f"     Modelo: {model}")
+            print("ERROR: No numerico")
+            print(f"[RESULTADO] {serial}: ERROR")
             counts["ERROR"] += 1
             continue
 
@@ -132,7 +159,17 @@ def main(argv=None, now=None):
             kt_val, ft_val, kt["datetime"], ft_result["date"]
         )
         if result != "UPDATE":
-            print(f"{serial:<8} {kt_val:<12.2f} {result}")
+            print()
+            print("=" * 60)
+            print(f"PROCESANDO SERIAL: {serial}")
+            print("=" * 60)
+            print(f"     Código: {unit}")
+            print(f"     Modelo: {model}")
+            print(f"     Valor Fracttal: {ft_val}")
+            print(f"     Última lectura Fracttal: {ft_result.get('date')}")
+            print(f"     Valor Komtrax: {kt_val}")
+            print(f"     Acción: {result}")
+            print(f"[RESULTADO] {serial}: {result}")
             counts[result] += 1
             continue
 
@@ -145,8 +182,13 @@ def main(argv=None, now=None):
             retrieved_at=retrieved_at,
             source="Komtrax",
         )
-        print(f"{serial:<8} {kt_val:<12.2f} UPDATE -> {pipeline.get('status')}")
+        status = pipeline.get("status")
+        print(f"[RESULTADO] {serial}: {status}")
         counts["UPDATE"] += 1
+        if status == "VERIFIED":
+            counts["VERIFIED"] += 1
+        elif status == "WRITE_AMBIGUOUS":
+            counts["WRITE_AMBIGUOUS"] += 1
 
     print("=" * 90)
     print(f"Total evaluados: {len(KOMTRAX_MACHINES)}")
@@ -156,6 +198,8 @@ def main(argv=None, now=None):
         "REVIEW_OLD_SOURCE",
         "REVIEW_INCONSISTENCY",
         "ERROR",
+        "VERIFIED",
+        "WRITE_AMBIGUOUS",
     ):
         print(f"{key}: {counts[key]}")
 
@@ -163,7 +207,13 @@ def main(argv=None, now=None):
         print("COBERTURA BAJA: 0 equipos en estado exitoso.")
         raise SystemExit(3)
 
-    print("PUT/POST/PATCH/DELETE productivos: 0" if dry_run else "PUT/POST/PATCH/DELETE productivos: ejecutados")
+    if dry_run:
+        print("PUT/POST/PATCH/DELETE productivos: 0")
+    else:
+        unverified = counts["UPDATE"] - counts["VERIFIED"] - counts["WRITE_AMBIGUOUS"]
+        print(f"PUT verificados: {counts['VERIFIED']}")
+        print(f"PUT ambiguos: {counts['WRITE_AMBIGUOUS']}")
+        print(f"UPDATE no verificados (bloqueados/error): {unverified}")
 
     return counts
 

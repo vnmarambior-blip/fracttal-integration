@@ -191,7 +191,7 @@ class EarlyReturnConfigTests(unittest.TestCase):
         self.assertEqual(self.saved[0]["status"], "REVIEW")
         self.assertEqual(self.saved[0]["error_code"], "CONFIG_MULTIPLE")
 
-    def test_old_reading_returns_review_not_skip(self):
+    def test_old_reading_higher_value_updates(self):
         old_reading = datetime(2022, 11, 30, tzinfo=timezone.utc)
         result = self.call_process(
             [patch.object(api, "get_telemetry_sync_config",
@@ -208,14 +208,12 @@ class EarlyReturnConfigTests(unittest.TestCase):
             reading=old_reading,
         )
 
-        self.assertEqual(result["status"], "REVIEW")
-        self.assertNotEqual(result["status"], "SKIP_EQUAL")
+        self.assertEqual(result["status"], "WOULD_UPDATE")
         self.assertEqual(len(self.saved), 1)
         self.assertEqual(
-            self.saved[0]["decision"], "REVIEW_OLD_SOURCE"
+            self.saved[0]["decision"], "WOULD_UPDATE"
         )
-        self.assertEqual(self.saved[0]["status"], "REVIEW")
-        self.assertEqual(self.saved[0]["write_status"], "BLOCKED")
+        self.assertEqual(self.saved[0]["status"], "WOULD_UPDATE")
 
 
 class LiveAbortTests(unittest.TestCase):
@@ -325,6 +323,36 @@ class LiveAbortTests(unittest.TestCase):
 
         self.assertEqual(len(process_calls), 1)
         self.assertEqual(process_calls[0]["serial"], SERIAL)
+
+
+class FileFixtureErrorTests(unittest.TestCase):
+    """Fixture inexistente o XML inválido: mensaje + exit 2, sin traceback."""
+
+    def test_missing_fixture_exits_2(self):
+        import tempfile
+        from pathlib import Path
+
+        missing = str(Path(tempfile.gettempdir()) / "noexiste-md-fleet.xml")
+
+        with self.assertRaises(SystemExit) as ctx:
+            run_mydevelon_sync.main(["--fleet-xml", missing])
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_invalid_xml_fixture_exits_2(self):
+        import tempfile
+        from pathlib import Path
+
+        bad = Path(tempfile.gettempdir()) / "mal-md-fleet.xml"
+        bad.write_text("<<<no es xml>>>", encoding="utf-8")
+
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                run_mydevelon_sync.main(["--fleet-xml", str(bad)])
+
+            self.assertEqual(ctx.exception.code, 2)
+        finally:
+            bad.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,20 @@ def run_sync(script_name, args, description, env=None):
         return False, output
 
 
+USAGE = """Uso: run_all_sync.py [--live] [--dry-run] [--report ARCHIVO]
+                         [--md-fleet-xml RUTA] [--kt-fleet-xml RUTA]
+
+Orquesta MyDevelon + Komtrax -> Fracttal en un solo comando.
+Default SEGURO: DRY-RUN con fixtures (cero PUTs).
+Produccion solo con --live explicito.
+"""
+
+# Flags con valor (consumen el siguiente token).
+_VALUE_FLAGS = ("--report", "--md-fleet-xml", "--kt-fleet-xml")
+# Flags booleanos conocidos.
+_BOOL_FLAGS = ("--live", "--dry-run")
+
+
 def split_orchestrator_args(argv):
     """Separa args del orquestador de los args de cada worker.
 
@@ -69,7 +83,14 @@ def split_orchestrator_args(argv):
     Komtrax recibe: --live (+ --fleet-xml si --kt-fleet-xml).
     --report NUNCA va a los workers: el reporte consolidado
     lo escribe el orquestador.
+
+    Argumentos desconocidos (incluidos typos) -> SystemExit(2).
+    -h/--help -> usage + SystemExit(0).
     """
+
+    if "-h" in argv or "--help" in argv:
+        print(USAGE, end="")
+        raise SystemExit(0)
 
     live = "--live" in argv
     dry_run = "--dry-run" in argv
@@ -89,6 +110,11 @@ def split_orchestrator_args(argv):
         elif arg == "--kt-fleet-xml" and index + 1 < len(argv):
             kt_fixture = argv[index + 1]
             index += 2
+        elif arg in _BOOL_FLAGS or arg == "--live":
+            index += 1
+        elif arg.startswith("-"):
+            print(f"ERROR: argumento desconocido: {arg}\n{USAGE}", end="")
+            raise SystemExit(2)
         else:
             index += 1
 

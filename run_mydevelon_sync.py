@@ -188,14 +188,18 @@ def _main(args, dry_run):
 
         actual_source = "live"
     else:
-        fleet_xml = resolve_fleet_xml_text(
-            mode="file",
-            fleet_xml_path=args.fleet_xml,
-            state_path=os.getenv(
-                "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
-            ),
-            fetcher=lambda: fetch_fleet(""),
-        )
+        try:
+            fleet_xml = resolve_fleet_xml_text(
+                mode="file",
+                fleet_xml_path=args.fleet_xml,
+                state_path=os.getenv(
+                    "MYDEVELON_STATE_FILE", DEFAULT_STATE_FILE
+                ),
+                fetcher=lambda: fetch_fleet(""),
+            )
+        except OSError as error:
+            print(f"ERROR: fixture inválido/inexistente: {args.fleet_xml} ({error})")
+            raise SystemExit(2)
 
         actual_source = f"file:{args.fleet_xml}"
 
@@ -203,7 +207,11 @@ def _main(args, dry_run):
     print("=" * 70)
 
     if mode != "live":
-        fleet = parse_fleet_xml(fleet_xml)
+        try:
+            fleet = parse_fleet_xml(fleet_xml)
+        except Exception as error:
+            print(f"ERROR: fixture inválido/inexistente: {args.fleet_xml} ({error})")
+            raise SystemExit(2)
     develon_fleet = [
         item for item in fleet
         if str(item.get("oem_name", "")).strip().upper() == TARGET_OEM

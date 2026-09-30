@@ -680,16 +680,12 @@ def validate_reading_is_newer(
 
     if (
         reading_datetime.astimezone(timezone.utc)
-        < last_reading_datetime.astimezone(timezone.utc)
-    ):
-        return "REVIEW_OLD_SOURCE"
-
-    if (
-        reading_datetime.astimezone(timezone.utc)
         == last_reading_datetime.astimezone(timezone.utc)
     ):
         return "SKIP_EQUAL"
 
+    # Sin bloqueo por fecha antigua: una lectura anterior a la última
+    # de Fracttal continúa hacia las reglas de comparación de valores.
     return None
 
 
@@ -1866,7 +1862,7 @@ def process_equipment(
     )
 
     print()
-    print(f"Valor MyDevelon: {new_value}")
+    print(f"Valor {source}: {new_value}")
     print(f"Acción: {action}")
 
     # ========================================================

@@ -4,6 +4,8 @@ import subprocess
 import sys
 from unittest.mock import patch
 
+import pytest
+
 import run_all_sync
 
 
@@ -114,7 +116,54 @@ def test_fixtures_split_per_source():
 
 
 def test_no_shared_fleet_xml():
-    parsed = run_all_sync.split_orchestrator_args(["--fleet-xml", "f.xml"])
+    # --fleet-xml suelto es ambiguo: el orquestador lo rechaza.
+    with pytest.raises(SystemExit) as exc:
+        run_all_sync.split_orchestrator_args(["--fleet-xml", "f.xml"])
 
-    assert parsed["md_args"] == []
-    assert parsed["kt_args"] == []
+    assert exc.value.code == 2
+
+
+def test_help_exits_zero_without_workers(monkeypatch, tmp_path, capsys):
+    import subprocess
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        proc = subprocess.CompletedProcess(args=cmd, returncode=0)
+        proc.stdout = ""
+        proc.stderr = ""
+        return proc
+
+    monkeypatch.setattr(run_all_sync.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        run_all_sync.main(["--help"])
+
+    assert exc.value.code == 0
+    assert calls == []
+    out, _ = capsys.readouterr()
+    assert "Uso:" in out
+
+
+def test_unknown_flag_exits_two_without_workers(monkeypatch):
+    import subprocess
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        proc = subprocess.CompletedProcess(args=cmd, returncode=0)
+        proc.stdout = ""
+        proc.stderr = ""
+        return proc
+
+    monkeypatch.setattr(run_all_sync.subprocess, "run", fake_run)
+
+    for typo in (["--typo"], ["--liev"], ["--reprot", "x.md"]):
+        with pytest.raises(SystemExit) as exc:
+            run_all_sync.main(typo)
+
+        assert exc.value.code == 2
+
+    assert calls == []

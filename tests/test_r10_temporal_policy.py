@@ -1,4 +1,4 @@
-"""R10: política temporal de tres ramas, sin flags muertos."""
+"""R10: política temporal sin bloqueo por fecha; sin flags muertos."""
 
 import unittest
 from datetime import datetime, timezone
@@ -26,10 +26,9 @@ class TemporalPolicyTests(unittest.TestCase):
             api.validate_reading_is_newer(moment, moment), "SKIP_EQUAL"
         )
 
-    def test_older_means_review_old_source(self):
-        self.assertEqual(
+    def test_older_means_no_date_block(self):
+        self.assertIsNone(
             api.validate_reading_is_newer(dt(2022, 11, 30), dt(2026, 7, 13)),
-            "REVIEW_OLD_SOURCE",
         )
 
     def test_no_dead_age_flags_in_write_path(self):

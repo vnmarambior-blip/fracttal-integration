@@ -340,12 +340,12 @@ def test_decide_greater_and_newer_updates(compare_module):
     )
 
 
-def test_decide_greater_but_older_reviews(compare_module):
+def test_decide_greater_but_older_updates(compare_module):
     module, _ = compare_module
 
     assert (
         module.decide_comparison(101.0, 100.0, "2026-09-22T00:00:00+00:00", "2026-09-23T00:00:00")
-        == "REVIEW_OLD_SOURCE"
+        == "UPDATE"
     )
 
 

@@ -87,7 +87,7 @@ class SkipEqualSemanticsTests(unittest.TestCase):
         self.assertEqual(len(self.saved), 1)
         self.assertEqual(self.saved[0]["decision"], "SKIP_EQUAL")
 
-    def test_old_date_same_value_is_not_skip(self):
+    def test_old_date_same_value_is_skip(self):
         with patch.object(api, "get_current_hourmeter",
                           return_value=current_result(50.0)):
             patches = [
@@ -116,9 +116,9 @@ class SkipEqualSemanticsTests(unittest.TestCase):
                 for item in reversed(patches):
                     item.stop()
 
-        self.assertNotEqual(result["status"], "SKIP_EQUAL")
+        self.assertEqual(result["status"], "SKIP_EQUAL")
         self.assertEqual(
-            self.saved[0]["decision"], "REVIEW_OLD_SOURCE"
+            self.saved[0]["decision"], "SKIP_EQUAL"
         )
 
     def test_old_date_different_value_review(self):
@@ -151,8 +151,9 @@ class SkipEqualSemanticsTests(unittest.TestCase):
                     item.stop()
 
         self.assertNotEqual(result["status"], "SKIP_EQUAL")
+        self.assertEqual(result["status"], "REVIEW_INCONSISTENCY")
         self.assertEqual(
-            self.saved[0]["decision"], "REVIEW_OLD_SOURCE"
+            self.saved[0]["decision"], "REVIEW_INCONSISTENCY"
         )
 
     def test_non_normalizable_never_skip(self):

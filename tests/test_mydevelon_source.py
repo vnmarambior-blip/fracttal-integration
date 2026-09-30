@@ -305,15 +305,13 @@ class MH18RegressionTests(TestCase):
             validate_reading_is_newer(old, last), "SKIP_EQUAL"
         )
 
-    def test_old_reading_signals_stale(self):
+    def test_old_reading_does_not_block(self):
         from api import validate_reading_is_newer
 
         old = datetime(2022, 11, 30, tzinfo=timezone.utc)
         last = datetime(2026, 7, 13, tzinfo=timezone.utc)
 
-        self.assertEqual(
-            validate_reading_is_newer(old, last), "REVIEW_OLD_SOURCE"
-        )
+        self.assertIsNone(validate_reading_is_newer(old, last))
 
     def test_equal_timestamp_keeps_skip_equal(self):
         from api import validate_reading_is_newer
